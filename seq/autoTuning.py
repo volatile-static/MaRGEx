@@ -70,15 +70,15 @@ class AutoTuning(blankSeq.MRIBLANKSEQ):
         self.rfExTime *= 1e6 # us
 
         # # SEQUENCE
-        # self.expt = ex.Experiment(lo_freq=hw.larmorFreq + self.freqOffset, init_gpa=False)
-        # t0 = 5
-        # self.iniSequence(t0, np.array([0, 0, 0]))
-        # t0 = 10
-        # # self.rfRecPulse(t0, self.rfExTime, self.rfExAmp, txChannel=0)
-        # self.ttl(t0, self.rfExTime + hw.blkTime, channel=1)
-        # self.rfRawPulse(t0 + hw.blkTime, self.rfExTime, self.rfExAmp, txChannel=1)
-        # t0 += hw.blkTime + self.rfExTime + 10000
-        # self.endSequence(t0)
+        self.expt = ex.Experiment(lo_freq=hw.larmorFreq + self.freqOffset, init_gpa=False)
+        t0 = 5
+        self.iniSequence(t0, np.array([0, 0, 0]))
+        t0 = 10
+        # self.rfRecPulse(t0, self.rfExTime, self.rfExAmp, txChannel=0)
+        self.ttl(t0, self.rfExTime + hw.blkTime, channel=1)
+        self.rfRawPulse(t0 + hw.blkTime, self.rfExTime, self.rfExAmp, txChannel=1)
+        t0 += hw.blkTime + self.rfExTime + 10000
+        self.endSequence(t0)
 
         # Run sequence continuously
         if not plotSeq:
@@ -91,13 +91,13 @@ class AutoTuning(blankSeq.MRIBLANKSEQ):
             # Excite
             n = 0
             while self.repeat:
-                # print("Running...")
-                # self.expt.run()
+                print("Running...")
+                self.expt.run()
                 n += 1
                 time.sleep(1)
 
             print("Ready!")
-        # self.expt.__del__()
+        self.expt.__del__()
 
     def sequenceAnalysis(self, obj=''):
         self.mapVals['bestSState'] = self.bestSState
@@ -116,7 +116,7 @@ class AutoTuning(blankSeq.MRIBLANKSEQ):
         start = time.time()
 
         # Open arduino serial port
-        arduino = serial.Serial(port='COM8', baudrate=115200, timeout=.1)
+        arduino = serial.Serial(port='COM7', baudrate=115200, timeout=.1)
         print('\n Arduino connected!')
         time.sleep(1)
 

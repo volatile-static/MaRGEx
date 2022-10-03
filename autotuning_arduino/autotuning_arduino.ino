@@ -4,7 +4,7 @@ int ttl = 22;
 String tmState;
 String serialState;
 int nStates = 1024;
-int cPins[] = {30, 32, 34, 36, 38, 13, 11, 9, 7, 5, 12, 10, 8, 6, 4};
+int cPins[] = {24, 26, 28, 30, 32, 12, 10, 8, 6, 4, 13, 11, 9, 7, 5};
 String bestTmState;
 String bestSState;
 int oldVoltage;

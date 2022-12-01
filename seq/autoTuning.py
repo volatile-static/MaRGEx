@@ -19,7 +19,7 @@ for char in path:
     ii += 1
 #******************************************************************************
 from PyQt5.QtCore import QThreadPool
-import experiment as ex
+from nanoVNA.Hardware import get_interfaces, get_VNA
 import numpy as np
 import seq.mriBlankSeq as blankSeq  # Import the mriBlankSequence for any new sequence.
 from worker import Worker
@@ -27,14 +27,11 @@ import serial
 import time
 import configs.hw_config as hw
 
-from plotview.spectrumplot import SpectrumPlot
-import pyqtgraph as pg
-
-
 class AutoTuning(blankSeq.MRIBLANKSEQ):
     def __init__(self):
         super(AutoTuning, self).__init__()
         # Input the parameters
+        self.frequencies = None
         self.expt = None
         self.repeat = None
         self.threadpool = None
@@ -43,10 +40,8 @@ class AutoTuning(blankSeq.MRIBLANKSEQ):
         self.txChannel = None
         self.freqOffset = None
         self.addParameter(key='seqName', string='AutoTuningInfo', val='AutoTuning')
-        self.addParameter(key='freqOffset', string='RF frequency offset (kHz)', val=0.0, field='RF')
-        self.addParameter(key='rfExTime', string='RF excitation time (s)', val=10.0, field='RF')
-        self.addParameter(key='rfExAmp', string='RF excitation amplitude (a.u.)', val=0.02, field='RF')
-        self.addParameter(key='txChannel', string='Tx channel', val=0, field='RF')
+        self.addParameter(key='accuracy', string='Accuracy (dB)', val=-20.0, field='RF')
+        self.addParameter(key='iterations', string='Max iterations', val=10, field='RF')
 
     def sequenceInfo(self):
         print("\n RF Auto-tuning")
@@ -64,45 +59,16 @@ class AutoTuning(blankSeq.MRIBLANKSEQ):
         for key in self.mapKeys:
             setattr(self, key, self.mapVals[key])
 
-        # Fix units to MHz and us
-        hw.larmorFreq = 3.066 # MHz
-        self.freqOffset *= 1e-3  # MHz
-        self.rfExTime *= 1e6 # us
-
-        # # SEQUENCE
-        self.expt = ex.Experiment(lo_freq=hw.larmorFreq + self.freqOffset, init_gpa=False)
-        t0 = 5
-        self.iniSequence(t0, np.array([0, 0, 0]))
-        t0 = 10
-        # self.rfRecPulse(t0, self.rfExTime, self.rfExAmp, txChannel=0)
-        self.ttl(t0, self.rfExTime + hw.blkTime, channel=1)
-        self.rfRawPulse(t0 + hw.blkTime, self.rfExTime, self.rfExAmp, txChannel=1)
-        t0 += hw.blkTime + self.rfExTime + 10000
-        self.endSequence(t0)
-
         # Run sequence continuously
-        if not plotSeq:
-            self.repeat = True
-            # Sweep the tuning matching states in parallel thread
-            self.threadpool = QThreadPool()
-            print("Multithreading with maximum %d threads \n" % self.threadpool.maxThreadCount())
-            worker = Worker(self.runAutoTuning)  # Any other args, kwargs are passed to the run function
-            self.threadpool.start(worker)
-            # Excite
-            n = 0
-            while self.repeat:
-                print("Running...")
-                self.expt.run()
-                n += 1
-                time.sleep(1)
-
-            print("Ready!")
-        self.expt.__del__()
+        self.threadpool = QThreadPool()
+        print("Multithreading with maximum %d threads \n" % self.threadpool.maxThreadCount())
+        worker = Worker(self.runAutoTuning)  # Any other args, kwargs are passed to the run function
+        self.threadpool.start(worker)
 
     def sequenceAnalysis(self, obj=''):
-        self.mapVals['bestSState'] = self.bestSState
-        self.mapVals['bestTmState'] = self.bestTmState
-        self.mapVals['minVoltage'] = self.vMin
+        # self.mapVals['bestSState'] = self.bestSState
+        # self.mapVals['bestTmState'] = self.bestTmState
+        # self.mapVals['minVoltage'] = self.vMin
         self.saveRawData()
 
         return([])
@@ -114,46 +80,127 @@ class AutoTuning(blankSeq.MRIBLANKSEQ):
 
     def runAutoTuning(self):
         start = time.time()
+        nCap = 5
 
-        # Open arduino serial port
-        arduino = serial.Serial(port='COM7', baudrate=115200, timeout=.1)
-        print('\n Arduino connected!')
-        time.sleep(1)
+        # Combinations
+        states = [None]*2**nCap
+        zero = "00000"
+        for state in range(2**nCap):
+            prov = bin(state)[2::]
+            x = len(prov)
+            if x < nCap:
+                states[state] = zero[0:nCap-x]+prov
+            else:
+                states[state] = prov
 
-        # Start states sweep
-        arduino.write(b'.')
+        # Series reactance
+        cs = np.array([np.Inf, 8, 3.9, 1.8, 1])*1e-9
+        statesCs = np.zeros(2**nCap)
+        for state in range(2**nCap):
+            for c in range(nCap):
+                if c == 0 and int(states[state][0]) == 0:
+                    statesCs[state] += 0
+                else:
+                    statesCs[state] += int(states[state][c])*cs[c]
+        statesXs = -1/(2*np.pi*hw.larmorFreq*1e6*statesCs)
 
-        # Read data
-        while arduino.in_waiting == 0:
-            time.sleep(0.1)
-        time.sleep(0.2)
-        result = arduino.readline().decode('utf-8')[0:-2].split(",")
+        # Tuning capacitor
+        ct = np.array([326, 174, 87, 44, 26])*1e-12
+        statesCt = np.zeros(2**nCap)
+        for state in range(2**nCap):
+            for c in range(nCap):
+                statesCt[state] += int(states[state][c])*ct[c]
 
-        # Get the best state
-        self.bestSState = result[0]
-        self.bestTmState = result[1]
-        self.vMin = int(result[2])/1023*5
+        # Matching capacitors
+        cm = np.array([np.Inf, 500, 262, 142, 75])*1e-12
+        statesCm = np.zeros(2 ** nCap)
+        for state in range(2 ** nCap):
+            for c in range(nCap):
+                if c == 0 and int(states[state][0]) == 0:
+                    statesCm[state] += 0
+                else:
+                    statesCm[state] += int(states[state][c]) * cm[c]
+        statesXm = -1 / (2 * np.pi * hw.larmorFreq * 1e6 * statesCm)
 
-        # Complete serial and tuning/matching binary values
-        while len(self.bestSState)<5:
-            self.bestSState += "0"
-        while len(self.bestTmState)<10:
-            self.bestTmState = "0"+self.bestTmState
+        # Open nanoVNA
+        # scan serial ports and connect
+        interface = get_interfaces()[0]
+        interface.open()
+        interface.timeout = 0.05
+        time.sleep(0.1)
+        vna = get_VNA(interface)
 
-        # Print the best state
-        print("Best series state = ", self.bestSState)
-        print("Best tuning/matching state = ", self.bestTmState)
-        print("Min voltage = %0.3f V" % self.vMin)
+        # # Open arduino serial port
+        # arduino = serial.Serial(port='COM7', baudrate=115200, timeout=.1)
+        # print('\n Arduino connected!')
+        # time.sleep(1)
+        #
+        # # Initial state
+        # arduino.write(b'100000000010000')
+        #
+        # # Read arduino state
+        # while arduino.in_waiting == 0:
+        #     time.sleep(0.1)
+        # result = arduino.readline()
 
-        # Close and destroy the arduino
-        arduino.close()
-        arduino.__del__()
+        # Measure the initial impedance
+        if self.frequencies==None:
+            self.frequencies = np.array(vna.readFrequencies())*1e-6
+        idf = np.argmin(abs(self.frequencies-hw.larmorFreq))
+        s11 = np.array([float(value) for value in vna.readValues("data 0")[idf].split(" ")])  # "data 0"->S11, "data 1"->S21
+        s11 = s11[0]+s11[1]*1j
+        impedance = 50*(1.+s11)/(1.-s11)
+        r0 = impedance.real
+        x0 = impedance.imag
+        print("\nS11 = %0.2f dB" % (20*np.log10(np.abs(s11))))
+        print("\nR = %0.2f Ohms" % r0)
+        print("\nX = %0.2f Ohms" % x0)
 
-        # Switch the repeat variable
-        self.repeat = False
+        # Move reactance to 50 Ohms
+        state = np.argmin(np.abs(statesXs+(x0-50)))
+        stateS0 = states[state]
+        print("\nSeries capacitance = %0.0f pF"%(statesCs[state]))
+        # arduino.write(stateS0+'0000010000')
+        s11 = np.array([float(value) for value in vna.readValues("data 0")[idf].split(" ")])
+        s11 = s11[0] + s11[1] * 1j
+        impedance = 50 * (1. + s11) / (1. - s11)
+        r0 = impedance.real
+        x0 = impedance.imag
+        print("\nR = %0.2f Ohms" % r0)
+        print("\nX = %0.2f Ohms" % x0)
 
-        stop = time.time()
-        print("Elapsed time = %0.1f s" % (stop-start))
+        # Move resistance to 50 Ohms
+        r0 = 10
+        x0 = 50
+        a = (r0 - 50)
+        b = 2 * 50 * x0
+        c = -50 * (r0**2 + x0**2)
+        xt0 = (-b - np.sqrt(b**2 - 4 * a * c)) / (2 * a)
+        ct0 = 1 / (2 * np.pi * hw.larmorFreq * 1e6 * xt0)
+        state = np.argmin(np.abs(statesCt - ct0))
+        stateT0 = states[state]
+        # arduino.write(stateS0+stateT0+'10000')
+        s11 = np.array([float(value) for value in vna.readValues("data 0")[idf].split(" ")])
+        s11 = s11[0] + s11[1] * 1j
+        impedance = 50 * (1. + s11) / (1. - s11)
+        r0 = impedance.real
+        x0 = impedance.imag
+        print("\nR = %0.2f Ohms" % r0)
+        print("\nX = %0.2f Ohms" % x0)
+
+        # Move reactance to 0
+        state = np.argmin(np.abs(statesXm - x0))
+        stateM0 = states[state]
+        # arduino.write(stateS0+stateT0+stateM0)
+        s11 = np.array([float(value) for value in vna.readValues("data 0")[idf].split(" ")])
+        s11 = s11[0] + s11[1] * 1j
+        impedance = 50 * (1. + s11) / (1. - s11)
+        r0 = impedance.real
+        x0 = impedance.imag
+        print("\nR = %0.2f Ohms" % r0)
+        print("\nX = %0.2f Ohms" % x0)
+
+        interface.close()
 
 
 if __name__ == '__main__':

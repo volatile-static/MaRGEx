@@ -14,7 +14,6 @@ import experiment as ex
 import scipy.signal as sig
 import csv
 
-
 class MRIBLANKSEQ:
     # Properties
     mapKeys = []  # keys for the maps

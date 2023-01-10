@@ -6,12 +6,19 @@ Created on Thu Oct  7 12:40:05 2021
 MRILAB @ I3M
 """
 
+import os
 import sys
-# marcos_client path for linux
-sys.path.append('../marcos_client')
-# marcos_client and PhysioMRI_GUI for Windows
-sys.path.append('D:\CSIC\REPOSITORIOS\marcos_client')
-sys.path.append('D:\CSIC\REPOSITORIOS\PhysioMRI_GUI')
+#*****************************************************************************
+# Add path to the working directory
+path = os.path.realpath(__file__)
+ii = 0
+for char in path:
+    if (char=='\\' or char=='/') and path[ii+1:ii+14]=='PhysioMRI_GUI':
+        sys.path.append(path[0:ii+1]+'PhysioMRI_GUI')
+        sys.path.append(path[0:ii+1]+'marcos_client')
+    ii += 1
+#******************************************************************************
+
 import numpy as np
 import experiment as ex
 import matplotlib.pyplot as plt
@@ -20,9 +27,10 @@ import os
 from scipy.io import savemat
 from datetime import date,  datetime 
 import pdb
-from configs.hw_config_2 import Gx_factor
-from configs.hw_config_2 import Gy_factor
-from configs.hw_config_2 import Gz_factor
+# from configs.hw_config_2 import Gx_factor
+# from configs.hw_config_2 import Gy_factor
+# from configs.hw_config_2 import Gz_factor
+import configs.hw_config as hw
 st = pdb.set_trace
 
 
@@ -35,28 +43,28 @@ st = pdb.set_trace
 def rare2_standalone(
     init_gpa=False,              # Starts the gpa
     nScans = 1,                 # NEX
-    larmorFreq = 3.0771e6,      # Larmor frequency
-    rfExAmp = 0.4,             # rf excitation pulse amplitude
+    larmorFreq = 3.057e6,      # Larmor frequency
+    rfExAmp = 0.3,             # rf excitation pulse amplitude
     rfReAmp = None,             # rf refocusing pulse amplitude
-    rfExTime = 40e-6,          # rf excitation pulse time
+    rfExTime = 36e-6,          # rf excitation pulse time
     rfReTime = None,            # rf refocusing pulse time
-    echoSpacing = 10e-3,        # time between echoes
+    echoSpacing = 40e-3,        # time between echoes
     repetitionTime = 1000e-3,     # TR
-    fov = np.array([150e-3,200e-3,120e-3]),           # FOV along readout, phase and slice
-    dfov = np.array([0, 15e-3, 15e-3]),            # Displacement of fov center
-    nPoints = np.array([60, 60, 4]),                 # Number of points along readout, phase and slice
-    etl = 60,                   # Echo train length
+    fov = np.array([150e-3,150e-3,150e-3]),           # FOV along readout, phase and slice
+    dfov = np.array([0, 0e-3, 0e-3]),            # Displacement of fov center
+    nPoints = np.array([60, 60, 10]),                 # Number of points along readout, phase and slice
+    etl = 10,                   # Echo train length
     acqTime = 4e-3,             # Acquisition time
-    axes = np.array([2, 0, 1]),       # 0->x, 1->y and 2->z defined as [rd,ph,sl]
+    axes = np.array([2, 1, 0]),       # 0->x, 1->y and 2->z defined as [rd,ph,sl]
     axesEnable = np.array([1, 1, 1]), # 1-> Enable, 0-> Disable
     sweepMode = 1,               # 0->k2k,  1->02k,  2->k20, 3->Niquist modulated
     phaseGradTime = 1000e-6,       # Phase and slice dephasing time
-    rdPreemphasis = 1.008,
+    rdPreemphasis = 1.0,
     drfPhase = 0, 
     dummyPulses = 1,                     # Dummy pulses for T1 stabilization
-    shimming = np.array([-70, -90, 10])
+    shimming = np.array([-15, -15, 20])
     ):
-    
+
     # rawData fields
     rawData = {}
     
@@ -341,20 +349,43 @@ def rare2_standalone(
     # Plot k-space
     plt.figure(2)
     dataPlot = data[round(nSL/2), :, :]
-    plt.subplot(211)
-    plt.imshow(np.log(np.abs(dataPlot)),cmap='gray')
-    plt.axis('off')
-    
+    # plt.subplot(311)
+    # plt.imshow(np.log(np.abs(dataPlot)),cmap='gray')
+    # plt.axis('off')
+    #
     # Plot image
     if sweepMode==3:
         imgPlot = img[round(nSL/2), round(nPH/4):round(3*nPH/4), :]
     else:
-        imgPlot = img[round(nSL/2), :, :]
-    plt.subplot(212)
+        imgPlot = img[round(5), :, :]
+    plt.subplot(311)
     plt.imshow(np.abs(imgPlot), cmap='gray')
     plt.title(rawData['fileName'])
+    #plt.title('nSL = 2')
     plt.axis('off')
-    
+    # plt.show()
+
+    # Plot image
+    if sweepMode==3:
+        imgPlot = img[round(nSL/2), round(nPH/4):round(3*nPH/4), :]
+    else:
+        imgPlot = img[round(6), :, :]
+    plt.subplot(312)
+    plt.imshow(np.abs(imgPlot), cmap='gray')
+    # plt.title(rawData['fileName'])
+    plt.title('nSL = 6')
+    plt.axis('off')
+
+    # Plot image
+    if sweepMode==3:
+        imgPlot = img[round(nSL/2), round(nPH/4):round(3*nPH/4), :]
+    else:
+        imgPlot = img[round(8), :, :]
+    plt.subplot(313)
+    plt.imshow(np.abs(imgPlot), cmap='gray')
+    # plt.title(rawData['fileName'])
+    plt.title('nSL = 8')
+    plt.axis('off')
     plt.show()
 
 
@@ -365,7 +396,9 @@ def rare2_standalone(
 
 def reorganizeGfactor(axes):
     gFactor = np.array([0., 0., 0.])
-    
+    Gx_factor = 10.0
+    Gy_factor = 16.0
+    Gz_factor = 14.0
     # Set the normalization factor for readout, phase and slice gradient
     for ii in range(3):
         if axes[ii]==0:

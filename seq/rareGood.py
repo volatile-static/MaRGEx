@@ -285,7 +285,7 @@ class RARE(blankSeq.MRIBLANKSEQ):
                 tEx = 20e3+self.repetitionTime*repeIndex+self.inversionTime+self.preExTime
 
                 # First I do a noise measurement.
-                if repeIndex==0 :
+                if repeIndex==0:
                     t0 = tEx-self.preExTime-self.inversionTime-4*self.acqTime
                     self.rxGate(t0, self.acqTime+2*addRdPoints/BW)
                     acqPoints += nRD
@@ -319,7 +319,7 @@ class RARE(blankSeq.MRIBLANKSEQ):
                 self.rfRecPulse(t0,self.rfExTime,rfExAmp,0)
 
                 # Dephasing readout
-                if (repeIndex==0  or repeIndex>=self.dummyPulses) and dc==False:
+                if (repeIndex==0 or repeIndex>=self.dummyPulses) and dc==False:
                     t0 = tEx+self.rfExTime/2-hw.gradDelay
                     self.gradTrap(t0, gradRiseTime, self.rdDephTime, rdDephAmplitude*self.rdPreemphasis, gSteps, self.axesOrientation[0], self.shimming)
                     orders = orders+gSteps*2

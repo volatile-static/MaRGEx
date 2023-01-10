@@ -35,8 +35,8 @@ class SessionViewerController(MainWindow_Form, MainWindow_Base):
 
         else:
             self.sessionlist.setCurrentIndex(0)
-            self.session = self.sessionlist.currentText() 
-            
+            self.session = self.sessionlist.currentText()
+
         self.sessionlist.currentIndexChanged.connect(self.selectionChanged)
         self.layout_operations.addWidget(self.sessionlist)
 

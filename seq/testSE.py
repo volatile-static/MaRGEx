@@ -27,6 +27,7 @@ class testSE(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=72.0, field='RF')
         self.addParameter(key='phaseRe', string='RF refocusing phase', val=np.pi/2, field='RF')
         self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=10.0, field='SEQ')
+        self.addParameter(key='etl', string='Echo train length', val=1, field='SEQ')
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=50., field='SEQ')
         self.addParameter(key='nRepetitions', string='Number of repetitions ', val=60, field='SEQ')
         self.addParameter(key='nScans', string='Number of scans ', val=60, field='SEQ')
@@ -34,6 +35,7 @@ class testSE(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='nPoints', string='nPoints', val=90, field='IM')
         self.addParameter(key='acqTime', string='Acquisition time (ms)', val=4.0, field='SEQ')
         self.addParameter(key='ttlExtra', string='TTL (1-pi/2 pulse; 2-pi pulse) (ms)', val=2, field='SEQ')
+        self.addParameter(key='plotOption', string='Plot (0 = angle; 1 = max Echo)', val=0, field='OTH')
 
     def sequenceInfo(self):
         print(" ")
@@ -59,6 +61,7 @@ class testSE(blankSeq.MRIBLANKSEQ):
         rfReTime = self.mapVals['rfReTime']
         phaseRe = self.mapVals['phaseRe']
         echoSpacing = self.mapVals['echoSpacing']
+        etl = self.mapVals['etl']
         repetitionTime = self.mapVals['repetitionTime']
         nRepetitions  =  self.mapVals['nRepetitions']
         nScans = self.mapVals['nScans']
@@ -77,24 +80,26 @@ class testSE(blankSeq.MRIBLANKSEQ):
 
                 t0 = tEx - hw.blkTime - rfExTime / 2
                 t0Ex = t0
-                # self.rfRecPulse(t0, rfExTime, rfExAmp, 0)
+                self.rfRecPulse(t0, rfExTime, rfExAmp, 0)
                 # self.ttl(t0, rfExTime+hw.blkTime, channel=0)
                 # if ttlExtra == 1:
                 #     self.ttl(t0, rfExTime, channel=1)
+                for nEcho in range(etl):
+                    # Refocusing pulse
+                    t0 = tEx + nEcho*echoSpacing + echoSpacing/2 - hw.blkTime - rfReTime / 2
+                    self.rfRecPulse(t0, rfReTime, rfReAmp, phaseRe*np.pi/180)
+                    # self.ttl(t0, rfReTime+hw.blkTime, channel=0)
+                    # self.ttl(t0, rfReTime+hw.blkTime, channel=1)
+                    # if ttlExtra == 2:
+                    #     self.ttl(t0, rfReTime, channel=1)
 
-                # Refocusing pulse
-                t0 = tEx + echoSpacing/2 - hw.blkTime - rfReTime / 2
-                # self.rfRecPulse(t0, rfReTime, rfReAmp, phaseRe*np.pi/180)
-                # self.ttl(t0, rfReTime+hw.blkTime, channel=0)
-                # self.ttl(t0, rfReTime+hw.blkTime, channel=1)
-                # if ttlExtra == 2:
-                #     self.ttl(t0, rfReTime, channel=1)
+                    # Rx gate
+                    tEcho = tEx + nEcho*echoSpacing + echoSpacing - acqCenter
+                    t0 = tEcho - acqTime / 2
+                    self.rxGate(t0, acqTime)
+                    # self.ttl(t0, acqTime, channel=0)
 
-                # Rx gate
-                tEcho = tEx + echoSpacing - acqCenter
-                t0 = tEcho - acqTime / 2
-                self.rxGate(t0, acqTime)
-                self.ttl(t0, acqTime, channel=0)
+
                 # Update time for next repetition
                 tEx = tEx + repetitionTime
             self.endSequence(20e3 + repetitionTime*nRepetitions)
@@ -129,14 +134,14 @@ class testSE(blankSeq.MRIBLANKSEQ):
                 data = rxd['rx0'] #* 13.788
                 # data = sig.decimate(data, hw.oversamplingFactor, ftype='fir', zero_phase=True)
                 dataFull = np.concatenate((dataFull, data), axis=0)
-                data = np.reshape(data, (nRepetitions, nPoints))
-                for nRep in range(nRepetitions):
-                    spectrum = np.abs(np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(data[nRep]))))
-                    spectrumFull = np.concatenate((spectrumFull, spectrum), axis=0)
+                # data = np.reshape(data, (nRepetitions, nPoints))
+                # for nRep in range(nRepetitions):
+                #     spectrum = np.abs(np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(data[nRep]))))
+                #     spectrumFull = np.concatenate((spectrumFull, spectrum), axis=0)
 
-            data = np.reshape(dataFull, (nRepetitions*nScans, -1))
+            data = np.reshape(dataFull, (nRepetitions*nScans*etl, -1))
             self.mapVals['data'] = data
-            spectrum = np.reshape(spectrumFull, (nRepetitions * nScans, -1))
+            spectrum = np.reshape(spectrumFull, (nRepetitions * nScans * etl, -1))
             self.mapVals['spectrum'] = spectrum
 
         self.expt.__del__()
@@ -145,9 +150,10 @@ class testSE(blankSeq.MRIBLANKSEQ):
 
     def sequenceAnalysis(self, obj=''):
         self.saveRawData()
+        plotOption = self.mapVals['plotOption']
         data = self.mapVals['data']
-        spectrum = self.mapVals['spectrum']
-        bw = self.mapVals['bw']
+        # spectrum = self.mapVals['spectrum']
+        # bw = self.mapVals['bw']
 
         # magnitude = Spectrum3DPlot(np.abs(data), title="Magnitude")
         # magnitudeWidget = magnitude.getImageWidget()
@@ -166,20 +172,21 @@ class testSE(blankSeq.MRIBLANKSEQ):
         nRepetitions = self.mapVals['nRepetitions']
         nScans = self.mapVals['nScans']
         nPoints = self.mapVals['nPoints']
-        timeVector = np.linspace(0, acqTime*nRepetitions*nScans, num=nPoints*nRepetitions*nScans)
+        etl = self.mapVals['etl']
+        timeVector = np.linspace(0, acqTime*nRepetitions*nScans*etl, num=nPoints*nRepetitions*nScans*etl)
         timeVector = np.transpose(timeVector)
 
 
-        # fVector = np.linspace(0, bw*nRepetitions*nScans, nPoints*nRepetitions*nScans)
-        # fVector = np.transpose(fVector)
-        fVectorFull = []
-        fVector = np.linspace(-bw/2, bw/2, nPoints)
-        for nIndex in range(nRepetitions*nScans):
-            fVectorFull = np.concatenate((fVectorFull, fVector), axis=0)
-        fVector = np.transpose(fVectorFull)
-
+        # # fVector = np.linspace(0, bw*nRepetitions*nScans, nPoints*nRepetitions*nScans)
+        # # fVector = np.transpose(fVector)
+        # fVectorFull = []
+        # fVector = np.linspace(-bw/2, bw/2, nPoints)
+        # for nIndex in range(nRepetitions*nScans):
+        #     fVectorFull = np.concatenate((fVectorFull, fVector), axis=0)
+        # fVector = np.transpose(fVectorFull)
+        #
         data = np.reshape(data, -1)
-        spectrum = np.reshape(spectrum, -1)
+        # spectrum = np.reshape(spectrum, -1)
 
         # Plot signal versus time
         magPlotWidget = SpectrumPlot(xData=timeVector,
@@ -189,12 +196,12 @@ class testSE(blankSeq.MRIBLANKSEQ):
                                 yLabel='Signal amplitude (mV)',
                                 title='Magnitude')
 
-        specPlotWidget = SpectrumPlot(xData=fVector,
-                                     yData=[spectrum],
-                                     legend=['abs'],
-                                     xLabel='f (kHz)',
-                                     yLabel='spectrum amplitude (a. u)',
-                                     title='FFT')
+        # specPlotWidget = SpectrumPlot(xData=fVector,
+        #                              yData=[spectrum],
+        #                              legend=['abs'],
+        #                              xLabel='f (kHz)',
+        #                              yLabel='spectrum amplitude (a. u)',
+        #                              title='FFT')
         anglePlotWidget = SpectrumPlot(xData=timeVector,
                                       yData=[np.angle(data)],
                                       legend=['abs', 'real', 'imag'],
@@ -202,8 +209,8 @@ class testSE(blankSeq.MRIBLANKSEQ):
                                       yLabel='Phase (rad)',
                                       title='Phase')
 
-        repetitions = np.linspace(1, nRepetitions*nScans, nRepetitions*nScans)
-        data = np.reshape(data, (nRepetitions*nScans, -1))
+        repetitions = np.linspace(1, nRepetitions*nScans*etl, nRepetitions*nScans*etl)
+        data = np.reshape(data, (nRepetitions*nScans*etl, -1))
         phase = np.angle(data[:, int(nPoints/2)])
         phasePlotWidget = SpectrumPlot(xData=repetitions,
                                        yData=[np.unwrap(phase)],
@@ -212,5 +219,20 @@ class testSE(blankSeq.MRIBLANKSEQ):
                                        yLabel='Phase (rad)',
                                        title='Phase')
 
-        self.out = [magPlotWidget, phasePlotWidget]
+
+        repetitions = np.linspace(1, nRepetitions*nScans*etl, nRepetitions*nScans*etl)
+        data = np.reshape(data, (nRepetitions*nScans*etl, -1))
+        maxAbs = np.abs(data[:, int(nPoints/2)])
+        maxAbsPlotWidget = SpectrumPlot(xData=repetitions,
+                                       yData=[maxAbs],
+                                       legend=[''],
+                                       xLabel='Repetition',
+                                       yLabel='Central point (abs)',
+                                       title='CPMG')
+
+        if plotOption == 1:
+            self.out = [magPlotWidget, maxAbsPlotWidget]
+        else:
+            self.out = [magPlotWidget, phasePlotWidget]
+
         return(self.out)

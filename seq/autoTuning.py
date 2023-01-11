@@ -31,17 +31,14 @@ class AutoTuning(blankSeq.MRIBLANKSEQ):
     def __init__(self):
         super(AutoTuning, self).__init__()
         # Input the parameters
+        self.state0 = None
         self.frequencies = None
         self.expt = None
-        self.repeat = None
         self.threadpool = None
-        self.rfExAmp = None
-        self.rfExTime = None
-        self.txChannel = None
-        self.freqOffset = None
         self.addParameter(key='seqName', string='AutoTuningInfo', val='AutoTuning')
         self.addParameter(key='accuracy', string='Accuracy (dB)', val=-20.0, field='RF')
         self.addParameter(key='iterations', string='Max iterations', val=10, field='RF')
+        self.addParameter(key='state0', string='State 0', val='100000000010000', field='RF')
 
     def sequenceInfo(self):
         print("\n RF Auto-tuning")
@@ -73,11 +70,6 @@ class AutoTuning(blankSeq.MRIBLANKSEQ):
 
         return([])
 
-    def runTest(self):
-        time.sleep(10)
-        print("Soy A")
-        self.repeat = False
-
     def runAutoTuning(self):
         start = time.time()
         nCap = 5
@@ -96,13 +88,17 @@ class AutoTuning(blankSeq.MRIBLANKSEQ):
         # Series reactance
         cs = np.array([np.Inf, 8, 3.9, 1.8, 1])*1e-9
         statesCs = np.zeros(2**nCap)
+        statesXs = np.zeros(2**nCap)
         for state in range(2**nCap):
             for c in range(nCap):
                 if c == 0 and int(states[state][0]) == 0:
                     statesCs[state] += 0
                 else:
                     statesCs[state] += int(states[state][c])*cs[c]
-        statesXs = -1/(2*np.pi*hw.larmorFreq*1e6*statesCs)
+            if statesCs[state]==0:
+                statesXs[state] = np.Inf
+            else:
+                statesXs[state] = -1/(2*np.pi*hw.larmorFreq*1e6*statesCs[state])
 
         # Tuning capacitor
         ct = np.array([326, 174, 87, 44, 26])*1e-12
@@ -114,13 +110,17 @@ class AutoTuning(blankSeq.MRIBLANKSEQ):
         # Matching capacitors
         cm = np.array([np.Inf, 500, 262, 142, 75])*1e-12
         statesCm = np.zeros(2 ** nCap)
+        statesXm = np.zeros(2 ** nCap)
         for state in range(2 ** nCap):
             for c in range(nCap):
                 if c == 0 and int(states[state][0]) == 0:
                     statesCm[state] += 0
                 else:
                     statesCm[state] += int(states[state][c]) * cm[c]
-        statesXm = -1 / (2 * np.pi * hw.larmorFreq * 1e6 * statesCm)
+            if statesCm[state]==0:
+                statesXm[state] = np.Inf
+            else:
+                statesXm[state] = -1/(2*np.pi*hw.larmorFreq*1e6*statesCm[state])
 
         # Open nanoVNA
         # scan serial ports and connect
@@ -131,21 +131,22 @@ class AutoTuning(blankSeq.MRIBLANKSEQ):
         vna = get_VNA(interface)
 
         # # Open arduino serial port
-        # arduino = serial.Serial(port='COM7', baudrate=115200, timeout=.1)
-        # print('\n Arduino connected!')
-        # time.sleep(1)
-        #
-        # # Initial state
-        # arduino.write(b'100000000010000')
-        #
-        # # Read arduino state
-        # while arduino.in_waiting == 0:
-        #     time.sleep(0.1)
-        # result = arduino.readline()
+        arduino = serial.Serial(port='COM4', baudrate=115200, timeout=.1)
+        print('\nArduino connected!')
+        time.sleep(2)
+
+        # Initial state
+        arduino.write(self.state0.encode())
+        # arduino.write('111111111111111'.encode())
+
+        # Read arduino state
+        while arduino.in_waiting == 0:
+            time.sleep(0.1)
+        result = arduino.readline()
+        print("\n"+result.decode())
 
         # Measure the initial impedance
-        if self.frequencies==None:
-            self.frequencies = np.array(vna.readFrequencies())*1e-6
+        self.frequencies = np.array(vna.readFrequencies())*1e-6
         idf = np.argmin(abs(self.frequencies-hw.larmorFreq))
         s11 = np.array([float(value) for value in vna.readValues("data 0")[idf].split(" ")])  # "data 0"->S11, "data 1"->S21
         s11 = s11[0]+s11[1]*1j
@@ -160,7 +161,7 @@ class AutoTuning(blankSeq.MRIBLANKSEQ):
         state = np.argmin(np.abs(statesXs+(x0-50)))
         stateS0 = states[state]
         print("\nSeries capacitance = %0.0f pF"%(statesCs[state]))
-        # arduino.write(stateS0+'0000010000')
+        # arduino.write(stateS0+'0000010000'.encode())
         s11 = np.array([float(value) for value in vna.readValues("data 0")[idf].split(" ")])
         s11 = s11[0] + s11[1] * 1j
         impedance = 50 * (1. + s11) / (1. - s11)
@@ -179,7 +180,7 @@ class AutoTuning(blankSeq.MRIBLANKSEQ):
         ct0 = 1 / (2 * np.pi * hw.larmorFreq * 1e6 * xt0)
         state = np.argmin(np.abs(statesCt - ct0))
         stateT0 = states[state]
-        # arduino.write(stateS0+stateT0+'10000')
+        # arduino.write(stateS0+stateT0+'10000'.encode())
         s11 = np.array([float(value) for value in vna.readValues("data 0")[idf].split(" ")])
         s11 = s11[0] + s11[1] * 1j
         impedance = 50 * (1. + s11) / (1. - s11)
@@ -191,7 +192,7 @@ class AutoTuning(blankSeq.MRIBLANKSEQ):
         # Move reactance to 0
         state = np.argmin(np.abs(statesXm - x0))
         stateM0 = states[state]
-        # arduino.write(stateS0+stateT0+stateM0)
+        # arduino.write(stateS0+stateT0+stateM0.encode())
         s11 = np.array([float(value) for value in vna.readValues("data 0")[idf].split(" ")])
         s11 = s11[0] + s11[1] * 1j
         impedance = 50 * (1. + s11) / (1. - s11)
@@ -201,6 +202,7 @@ class AutoTuning(blankSeq.MRIBLANKSEQ):
         print("\nX = %0.2f Ohms" % x0)
 
         interface.close()
+        arduino.close()
 
 
 if __name__ == '__main__':

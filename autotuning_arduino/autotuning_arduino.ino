@@ -1,6 +1,6 @@
 // Code to control the autotuning circuit with python.
 
-int cPins[] = {24, 26, 28, 30, 32, 23, 25, 27, 29, 31, 33, 35, 37, 39, 41};
+int cPins[] = {24, 32, 30, 28, 26, 31, 29, 27, 25, 23, 33, 41, 39, 37, 35};
 int nPins = 15;
 
 void setup() {
@@ -16,6 +16,7 @@ void setup() {
 void loop() {
   // Wait until there are any data available into the serial port
   if (Serial.available()>0) {
+    delay(10);
     String state = Serial.readString();
     for (int c=0; c<nPins; c++) {
       digitalWrite(cPins[c], String(state[c]).toInt());

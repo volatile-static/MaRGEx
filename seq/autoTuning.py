@@ -25,20 +25,36 @@ import seq.mriBlankSeq as blankSeq  # Import the mriBlankSequence for any new se
 from worker import Worker
 import serial
 import time
+import copy
 import configs.hw_config as hw
 
 class AutoTuning(blankSeq.MRIBLANKSEQ):
     def __init__(self):
         super(AutoTuning, self).__init__()
         # Input the parameters
+        self.seriesTarget = None
         self.state0 = None
         self.frequencies = None
         self.expt = None
         self.threadpool = None
+
+        # Open arduino serial port
+        self.arduino = serial.Serial(port='COM4', baudrate=115200, timeout=.1)
+        print('\nArduino connected!')
+        time.sleep(1)
+
+        # Initial state
+        self.arduino.write('000000000000000'.encode())
+
+        # Read arduino state
+        while self.arduino.in_waiting == 0:
+            time.sleep(0.1)
+        result = self.arduino.readline()
+
+        # Parameters
         self.addParameter(key='seqName', string='AutoTuningInfo', val='AutoTuning')
-        self.addParameter(key='accuracy', string='Accuracy (dB)', val=-20.0, field='RF')
+        self.addParameter(key='seriesTarget', string='Series target (Ohms)', val=50.0, field='RF')
         self.addParameter(key='iterations', string='Max iterations', val=10, field='RF')
-        self.addParameter(key='state0', string='State 0', val='100000000010000', field='RF')
 
     def sequenceInfo(self):
         print("\n RF Auto-tuning")
@@ -75,52 +91,52 @@ class AutoTuning(blankSeq.MRIBLANKSEQ):
         nCap = 5
 
         # Combinations
-        states = [None]*2**nCap
+        self.states = ['']*2**nCap
         zero = "00000"
         for state in range(2**nCap):
             prov = bin(state)[2::]
             x = len(prov)
             if x < nCap:
-                states[state] = zero[0:nCap-x]+prov
+                self.states[state] = zero[0:nCap-x]+prov
             else:
-                states[state] = prov
+                self.states[state] = prov
 
         # Series reactance
         cs = np.array([np.Inf, 8, 3.9, 1.8, 1])*1e-9
-        statesCs = np.zeros(2**nCap)
-        statesXs = np.zeros(2**nCap)
+        self.statesCs = np.zeros(2**nCap)
+        self.statesXs = np.zeros(2**nCap)
         for state in range(2**nCap):
             for c in range(nCap):
-                if c == 0 and int(states[state][0]) == 0:
-                    statesCs[state] += 0
+                if c == 0 and int(self.states[state][0]) == 0:
+                    self.statesCs[state] += 0
                 else:
-                    statesCs[state] += int(states[state][c])*cs[c]
-            if statesCs[state]==0:
-                statesXs[state] = np.Inf
+                    self.statesCs[state] += int(self.states[state][c])*cs[c]
+            if self.statesCs[state]==0:
+                self.statesXs[state] = np.Inf
             else:
-                statesXs[state] = -1/(2*np.pi*hw.larmorFreq*1e6*statesCs[state])
+                self.statesXs[state] = -1/(2*np.pi*hw.larmorFreq*1e6*self.statesCs[state])
 
         # Tuning capacitor
         ct = np.array([326, 174, 87, 44, 26])*1e-12
-        statesCt = np.zeros(2**nCap)
+        self.statesCt = np.zeros(2**nCap)
         for state in range(2**nCap):
             for c in range(nCap):
-                statesCt[state] += int(states[state][c])*ct[c]
+                self.statesCt[state] += int(self.states[state][c])*ct[c]
 
         # Matching capacitors
         cm = np.array([np.Inf, 500, 262, 142, 75])*1e-12
-        statesCm = np.zeros(2 ** nCap)
-        statesXm = np.zeros(2 ** nCap)
+        self.statesCm = np.zeros(2 ** nCap)
+        self.statesXm = np.zeros(2 ** nCap)
         for state in range(2 ** nCap):
             for c in range(nCap):
-                if c == 0 and int(states[state][0]) == 0:
-                    statesCm[state] += 0
+                if c == 0 and int(self.states[state][0]) == 0:
+                    self.statesCm[state] += 0
                 else:
-                    statesCm[state] += int(states[state][c]) * cm[c]
-            if statesCm[state]==0:
-                statesXm[state] = np.Inf
+                    self.statesCm[state] += int(self.states[state][c]) * cm[c]
+            if self.statesCm[state]==0:
+                self.statesXm[state] = np.Inf
             else:
-                statesXm[state] = -1/(2*np.pi*hw.larmorFreq*1e6*statesCm[state])
+                self.statesXm[state] = -1/(2*np.pi*hw.larmorFreq*1e6*self.statesCm[state])
 
         # Open nanoVNA
         # scan serial ports and connect
@@ -128,82 +144,158 @@ class AutoTuning(blankSeq.MRIBLANKSEQ):
         interface.open()
         interface.timeout = 0.05
         time.sleep(0.1)
-        vna = get_VNA(interface)
+        self.vna = get_VNA(interface)
 
-        # # Open arduino serial port
-        arduino = serial.Serial(port='COM4', baudrate=115200, timeout=.1)
-        print('\nArduino connected!')
-        time.sleep(2)
+        # Get frequencies
+        self.frequencies = np.array(self.vna.readFrequencies()) * 1e-6
+        self.idf = np.argmin(abs(self.frequencies - hw.larmorFreq))
 
-        # Initial state
-        arduino.write(self.state0.encode())
-        # arduino.write('111111111111111'.encode())
-
-        # Read arduino state
-        while arduino.in_waiting == 0:
+        state = '10000'
+        self.arduino.write((state + '0000010000').encode())
+        while self.arduino.in_waiting == 0:
             time.sleep(0.1)
-        result = arduino.readline()
-        print("\n"+result.decode())
-
-        # Measure the initial impedance
-        self.frequencies = np.array(vna.readFrequencies())*1e-6
-        idf = np.argmin(abs(self.frequencies-hw.larmorFreq))
-        s11 = np.array([float(value) for value in vna.readValues("data 0")[idf].split(" ")])  # "data 0"->S11, "data 1"->S21
-        s11 = s11[0]+s11[1]*1j
-        impedance = 50*(1.+s11)/(1.-s11)
-        r0 = impedance.real
-        x0 = impedance.imag
-        print("\nS11 = %0.2f dB" % (20*np.log10(np.abs(s11))))
-        print("\nR = %0.2f Ohms" % r0)
-        print("\nX = %0.2f Ohms" % x0)
-
-        # Move reactance to 50 Ohms
-        state = np.argmin(np.abs(statesXs+(x0-50)))
-        stateS0 = states[state]
-        print("\nSeries capacitance = %0.0f pF"%(statesCs[state]))
-        # arduino.write(stateS0+'0000010000'.encode())
-        s11 = np.array([float(value) for value in vna.readValues("data 0")[idf].split(" ")])
+        result = self.arduino.readline()
+        s11 = np.array(
+            [float(value) for value in self.vna.readValues("data 0")[self.idf].split(" ")])  # "data 0"->S11, "data 1"->S21
         s11 = s11[0] + s11[1] * 1j
         impedance = 50 * (1. + s11) / (1. - s11)
         r0 = impedance.real
         x0 = impedance.imag
-        print("\nR = %0.2f Ohms" % r0)
-        print("\nX = %0.2f Ohms" % x0)
+        print("\nInput impedance:")
+        print("R = %0.2f Ohms" % r0)
+        print("X = %0.2f Ohms" % x0)
 
-        # Move resistance to 50 Ohms
-        r0 = 10
-        x0 = 50
-        a = (r0 - 50)
-        b = 2 * 50 * x0
-        c = -50 * (r0**2 + x0**2)
-        xt0 = (-b - np.sqrt(b**2 - 4 * a * c)) / (2 * a)
-        ct0 = 1 / (2 * np.pi * hw.larmorFreq * 1e6 * xt0)
-        state = np.argmin(np.abs(statesCt - ct0))
-        stateT0 = states[state]
-        # arduino.write(stateS0+stateT0+'10000'.encode())
-        s11 = np.array([float(value) for value in vna.readValues("data 0")[idf].split(" ")])
-        s11 = s11[0] + s11[1] * 1j
-        impedance = 50 * (1. + s11) / (1. - s11)
-        r0 = impedance.real
-        x0 = impedance.imag
-        print("\nR = %0.2f Ohms" % r0)
-        print("\nX = %0.2f Ohms" % x0)
+        if x0 > self.seriesTarget:
+            stateCs = self.getCs(0, 17)
+        else:
+            stateCs = "10000"
 
-        # Move reactance to 0
-        state = np.argmin(np.abs(statesXm - x0))
-        stateM0 = states[state]
-        # arduino.write(stateS0+stateT0+stateM0.encode())
-        s11 = np.array([float(value) for value in vna.readValues("data 0")[idf].split(" ")])
-        s11 = s11[0] + s11[1] * 1j
-        impedance = 50 * (1. + s11) / (1. - s11)
-        r0 = impedance.real
-        x0 = impedance.imag
-        print("\nR = %0.2f Ohms" % r0)
-        print("\nX = %0.2f Ohms" % x0)
+        stateCt = self.getCt(0, stateCs, 17)
+
+        stateCm = self.getCm(17, stateCs, stateCt)
+
+        stateCt = self.getCt(stateCt, stateCs, stateCm)
+
+        stateCm = self.getCm(stateCm, stateCs, stateCt)
+
+        print("\nFinal state")
+        print(self.states[stateCs]+self.states[stateCt]+self.states[stateCm])
 
         interface.close()
-        arduino.close()
 
+    def getCs(self, stateCt, stateCm):
+        # Sweep series impedances until reactance goes higher than 50 Ohms
+        print("\nObtaining series capacitor...")
+        n = 0
+        x0 = [0.0]
+        while x0[-1] < self.seriesTarget and n < 31:
+            n += 1
+            self.arduino.write((self.states[n] + self.states[stateCt] +self.states[stateCm]).encode())
+            while self.arduino.in_waiting == 0:
+                time.sleep(0.1)
+            result = self.arduino.readline()
+            s11 = np.array(
+                [float(value) for value in self.vna.readValues("data 0")[self.idf].split(" ")])  # "data 0"->S11, "data 1"->S21
+            s11 = s11[0] + s11[1] * 1j
+            impedance = 50 * (1. + s11) / (1. - s11)
+            x0.append(impedance.imag)
+
+        # Select the value with reactance closest to 50 Ohms
+        stateCs = np.argmin(np.abs(np.array(x0) - self.seriesTarget))
+        self.arduino.write((self.states[stateCs] + self.states[stateCt] + self.states[stateCm]).encode())
+        while self.arduino.in_waiting == 0:
+            time.sleep(0.1)
+        result = self.arduino.readline()
+        s11 = np.array(
+            [float(value) for value in self.vna.readValues("data 0")[self.idf].split(" ")])  # "data 0"->S11, "data 1"->S21
+        s11 = s11[0] + s11[1] * 1j
+        impedance = 50 * (1. + s11) / (1. - s11)
+        r0 = impedance.real
+        x0 = impedance.imag
+        print("Best state:")
+        print(self.states[stateCs])
+        print("%0.0f pF" % (self.statesCs[stateCs] * 1e12))
+        print("S11 = %0.2f dB" % (20 * np.log10(np.abs(s11))))
+        print("R = %0.2f Ohms" % r0)
+        print("X = %0.2f Ohms" % x0)
+        
+        return stateCs
+
+    def getCt(self, n0, stateCs, stateCm):
+        # Sweep tuning capacitances until resistance goes higher than 50 Ohms
+        print("\nObtaining tuning capacitor...")
+        n = copy.copy(n0)
+        r0 = [0.0]
+        while r0[-1] < 50.0 and n < 31:
+            n += 1
+            self.arduino.write((self.states[stateCs] + self.states[n] + self.states[stateCm]).encode())
+            while self.arduino.in_waiting == 0:
+                time.sleep(0.1)
+            result = self.arduino.readline()
+            s11 = np.array(
+                [float(value) for value in self.vna.readValues("data 0")[self.idf].split(" ")])  # "data 0"->S11, "data 1"->S21
+            s11 = s11[0] + s11[1] * 1j
+            impedance = 50 * (1. + s11) / (1. - s11)
+            r0.append(impedance.real)
+
+        # Select the value with reactance closest to 50 Ohms
+        stateCt = n0 + np.argmin(np.abs(np.array(r0) - 50.0))
+        self.arduino.write((self.states[stateCs] + self.states[stateCt] + self.states[stateCm]).encode())
+        while self.arduino.in_waiting == 0:
+            time.sleep(0.1)
+        result = self.arduino.readline()
+        s11 = np.array(
+            [float(value) for value in self.vna.readValues("data 0")[self.idf].split(" ")])  # "data 0"->S11, "data 1"->S21
+        s11 = s11[0] + s11[1] * 1j
+        impedance = 50 * (1. + s11) / (1. - s11)
+        r0 = impedance.real
+        x0 = impedance.imag
+        print("Best state:")
+        print(self.states[stateCt])
+        print("%0.0f pF" % (self.statesCt[stateCt] * 1e12))
+        print("S11 = %0.2f dB" % (20*np.log10(np.abs(s11))))
+        print("R = %0.2f Ohms" % r0)
+        print("X = %0.2f Ohms" % x0)
+
+        return stateCt
+
+    def getCm(self, n0, stateCs, stateCt):
+        # Sweep matching capacitances until reactance goes negative
+        print("\nObtaining matching capacitor...")
+        n = copy.copy(n0)
+        x0 = [1.0]
+        while x0[-1] > 0.0 and n > 0:
+            n -= 1
+            self.arduino.write((self.states[stateCs] + self.states[stateCt] + self.states[n]).encode())
+            while self.arduino.in_waiting == 0:
+                time.sleep(0.1)
+            result = self.arduino.readline()
+            s11 = np.array(
+                [float(value) for value in self.vna.readValues("data 0")[self.idf].split(" ")])  # "data 0"->S11, "data 1"->S21
+            s11 = s11[0] + s11[1] * 1j
+            impedance = 50 * (1. + s11) / (1. - s11)
+            x0.append(impedance.imag)
+
+        # Select the value with reactance closest to 50 Ohms
+        stateCm = n0 - np.argmin(np.abs(np.array(x0)))
+        self.arduino.write((self.states[stateCs] + self.states[stateCt] + self.states[stateCm]).encode())
+        while self.arduino.in_waiting == 0:
+            time.sleep(0.1)
+        result = self.arduino.readline()
+        s11 = np.array(
+            [float(value) for value in self.vna.readValues("data 0")[self.idf].split(" ")])  # "data 0"->S11, "data 1"->S21
+        s11 = s11[0] + s11[1] * 1j
+        impedance = 50 * (1. + s11) / (1. - s11)
+        r0 = impedance.real
+        x0 = impedance.imag
+        print("Best state:")
+        print(self.states[stateCm])
+        print("%0.0f pF" % (self.statesCm[stateCm] * 1e12))
+        print("S11 = %0.2f dB" % (20*np.log10(np.abs(s11))))
+        print("R = %0.2f Ohms" % r0)
+        print("X = %0.2f Ohms" % x0)
+
+        return stateCm
 
 if __name__ == '__main__':
     seq = AutoTuning()

@@ -1,14 +1,14 @@
 // Code to control the autotuning circuit with python.
 
-int cPins[] = {24, 32, 30, 28, 26, 31, 29, 27, 25, 23, 33, 41, 39, 37, 35};
-int nPins = 15;
+int cPins[] = {24, 32, 30, 28, 26, 31, 29, 27, 25, 23, 33, 41, 39, 37, 35, 34};
+int nPins = 16;
 
 void setup() {
   // Start the Serial communication
   Serial.begin(115200);
   Serial.setTimeout(100);
   // Set the pins for tuning, matching and series capacitors
-  for (int c=0; c<15; c++) {
+  for (int c=0; c<nPins; c++) {
     pinMode(cPins[c], OUTPUT);
   }
 }

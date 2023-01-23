@@ -150,8 +150,9 @@ class AutoTuning(blankSeq.MRIBLANKSEQ):
         self.frequencies = np.array(self.vna.readFrequencies()) * 1e-6
         self.idf = np.argmin(abs(self.frequencies - hw.larmorFreq))
 
+        # Get initial impedance
         state = '10000'
-        self.arduino.write((state + '0000010000').encode())
+        self.arduino.write((state + '00000100001').encode())
         while self.arduino.in_waiting == 0:
             time.sleep(0.1)
         result = self.arduino.readline()
@@ -166,31 +167,31 @@ class AutoTuning(blankSeq.MRIBLANKSEQ):
         print("X = %0.2f Ohms" % x0)
 
         if x0 > self.seriesTarget:
-            stateCs = self.getCs(0, 17)
+            stateCs = self.getCs(0, 17, "1")
         else:
             stateCs = "10000"
 
-        stateCt = self.getCt(0, stateCs, 17)
+        stateCt = self.getCt(0, stateCs, 17, "1")
 
-        stateCm = self.getCm(17, stateCs, stateCt)
+        stateCm = self.getCm(17, stateCs, stateCt, "1")
 
-        stateCt = self.getCt(stateCt, stateCs, stateCm)
+        stateCt = self.getCt(stateCt, stateCs, stateCm, "1")
 
-        stateCm = self.getCm(stateCm, stateCs, stateCt)
+        stateCm = self.getCm(stateCm, stateCs, stateCt, "0")
 
         print("\nFinal state")
         print(self.states[stateCs]+self.states[stateCt]+self.states[stateCm])
 
         interface.close()
 
-    def getCs(self, stateCt, stateCm):
+    def getCs(self, stateCt, stateCm, auto):
         # Sweep series impedances until reactance goes higher than 50 Ohms
         print("\nObtaining series capacitor...")
         n = 0
         x0 = [0.0]
         while x0[-1] < self.seriesTarget and n < 31:
             n += 1
-            self.arduino.write((self.states[n] + self.states[stateCt] +self.states[stateCm]).encode())
+            self.arduino.write((self.states[n] + self.states[stateCt] + self.states[stateCm] + "1").encode())
             while self.arduino.in_waiting == 0:
                 time.sleep(0.1)
             result = self.arduino.readline()
@@ -202,7 +203,7 @@ class AutoTuning(blankSeq.MRIBLANKSEQ):
 
         # Select the value with reactance closest to 50 Ohms
         stateCs = np.argmin(np.abs(np.array(x0) - self.seriesTarget))
-        self.arduino.write((self.states[stateCs] + self.states[stateCt] + self.states[stateCm]).encode())
+        self.arduino.write((self.states[stateCs] + self.states[stateCt] + self.states[stateCm] + auto).encode())
         while self.arduino.in_waiting == 0:
             time.sleep(0.1)
         result = self.arduino.readline()
@@ -221,14 +222,14 @@ class AutoTuning(blankSeq.MRIBLANKSEQ):
         
         return stateCs
 
-    def getCt(self, n0, stateCs, stateCm):
+    def getCt(self, n0, stateCs, stateCm, auto):
         # Sweep tuning capacitances until resistance goes higher than 50 Ohms
         print("\nObtaining tuning capacitor...")
         n = copy.copy(n0)
         r0 = [0.0]
         while r0[-1] < 50.0 and n < 31:
             n += 1
-            self.arduino.write((self.states[stateCs] + self.states[n] + self.states[stateCm]).encode())
+            self.arduino.write((self.states[stateCs] + self.states[n] + self.states[stateCm] + "1").encode())
             while self.arduino.in_waiting == 0:
                 time.sleep(0.1)
             result = self.arduino.readline()
@@ -240,7 +241,7 @@ class AutoTuning(blankSeq.MRIBLANKSEQ):
 
         # Select the value with reactance closest to 50 Ohms
         stateCt = n0 + np.argmin(np.abs(np.array(r0) - 50.0))
-        self.arduino.write((self.states[stateCs] + self.states[stateCt] + self.states[stateCm]).encode())
+        self.arduino.write((self.states[stateCs] + self.states[stateCt] + self.states[stateCm] + auto).encode())
         while self.arduino.in_waiting == 0:
             time.sleep(0.1)
         result = self.arduino.readline()
@@ -259,14 +260,14 @@ class AutoTuning(blankSeq.MRIBLANKSEQ):
 
         return stateCt
 
-    def getCm(self, n0, stateCs, stateCt):
+    def getCm(self, n0, stateCs, stateCt, auto):
         # Sweep matching capacitances until reactance goes negative
         print("\nObtaining matching capacitor...")
         n = copy.copy(n0)
         x0 = [1.0]
         while x0[-1] > 0.0 and n > 0:
             n -= 1
-            self.arduino.write((self.states[stateCs] + self.states[stateCt] + self.states[n]).encode())
+            self.arduino.write((self.states[stateCs] + self.states[stateCt] + self.states[n] + "1").encode())
             while self.arduino.in_waiting == 0:
                 time.sleep(0.1)
             result = self.arduino.readline()
@@ -278,7 +279,7 @@ class AutoTuning(blankSeq.MRIBLANKSEQ):
 
         # Select the value with reactance closest to 50 Ohms
         stateCm = n0 - np.argmin(np.abs(np.array(x0)))
-        self.arduino.write((self.states[stateCs] + self.states[stateCt] + self.states[stateCm]).encode())
+        self.arduino.write((self.states[stateCs] + self.states[stateCt] + self.states[stateCm] + auto).encode())
         while self.arduino.in_waiting == 0:
             time.sleep(0.1)
         result = self.arduino.readline()

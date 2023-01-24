@@ -44,7 +44,7 @@ class AutoTuning(blankSeq.MRIBLANKSEQ):
         time.sleep(1)
 
         # Initial state
-        self.arduino.write('000000000000000'.encode())
+        self.arduino.write('0000000000000000'.encode())
 
         # Read arduino state
         while self.arduino.in_waiting == 0:

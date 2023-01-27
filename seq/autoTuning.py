@@ -39,7 +39,7 @@ class AutoTuning(blankSeq.MRIBLANKSEQ):
         self.threadpool = None
 
         # Open arduino serial port
-        self.arduino = serial.Serial(port='COM4', baudrate=115200, timeout=.1)
+        self.arduino = serial.Serial(port=hw.arduinoPort, baudrate=115200, timeout=.1)
         print('\nArduino connected!')
         time.sleep(1)
 
@@ -264,7 +264,7 @@ class AutoTuning(blankSeq.MRIBLANKSEQ):
         # Sweep matching capacitances until reactance goes negative
         print("\nObtaining matching capacitor...")
         n = copy.copy(n0)
-        x0 = [1.0]
+        x0 = [10000.0]
         while x0[-1] > 0.0 and n > 0:
             n -= 1
             self.arduino.write((self.states[stateCs] + self.states[stateCt] + self.states[n] + "1").encode())

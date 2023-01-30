@@ -179,6 +179,8 @@ class AutoTuning(blankSeq.MRIBLANKSEQ):
 
         stateCm = self.getCm(stateCm, stateCs, stateCt, "0")
 
+        self.arduino.write((self.states[stateCs] + self.states[stateCt] + self.states[stateCm] + "0").encode())
+
         print("\nFinal state")
         print(self.states[stateCs]+self.states[stateCt]+self.states[stateCm])
 
@@ -279,7 +281,7 @@ class AutoTuning(blankSeq.MRIBLANKSEQ):
 
         # Select the value with reactance closest to 50 Ohms
         stateCm = n0 - np.argmin(np.abs(np.array(x0)))
-        self.arduino.write((self.states[stateCs] + self.states[stateCt] + self.states[stateCm] + auto).encode())
+        self.arduino.write((self.states[stateCs] + self.states[stateCt] + self.states[stateCm] + "1").encode())
         while self.arduino.in_waiting == 0:
             time.sleep(0.1)
         result = self.arduino.readline()
@@ -297,6 +299,72 @@ class AutoTuning(blankSeq.MRIBLANKSEQ):
         print("X = %0.2f Ohms" % x0)
 
         return stateCm
+
+class AutoTuningTest(blankSeq.MRIBLANKSEQ):
+    def __init__(self):
+        super(AutoTuningTest, self).__init__()
+        # Input the parameters
+        self.state = None
+        self.seriesTarget = None
+        self.state0 = None
+        self.frequencies = None
+        self.expt = None
+        self.threadpool = None
+
+        # Open arduino serial port
+        self.arduino = serial.Serial(port=hw.arduinoPort, baudrate=115200, timeout=.1)
+        print('\nArduino connected!')
+        time.sleep(1)
+
+        # Initial state
+        self.arduino.write('0000000000000000'.encode())
+
+        # Read arduino state
+        while self.arduino.in_waiting == 0:
+            time.sleep(0.1)
+        result = self.arduino.readline()
+
+        # Parameters
+        self.addParameter(key='seqName', string='AutoTuningInfo', val='AutoTuning')
+        self.addParameter(key='seriesTarget', string='Series target (Ohms)', val=50.0, field='RF')
+        self.addParameter(key='iterations', string='Max iterations', val=10, field='RF')
+        self.addParameter(key='state', string="State", val='0000000000000000', field='RF')
+
+
+
+    def sequenceInfo(self):
+        print("\n RF Auto-tuning")
+        print("Author: Dr. J.M. Algarín")
+        print("Contact: josalggui@i3m.upv.es")
+        print("mriLab @ i3M, CSIC, Spain")
+        print("Look for the best combination of tuning/matching.")
+        print("Specific hardware from MRILab @ i3M is required. \n")
+
+    def sequenceTime(self):
+        return 0  # minutes, scanTime
+
+    def sequenceRun(self, plotSeq=0):
+        # Create the inputs automatically as class properties
+        for key in self.mapKeys:
+            setattr(self, key, self.mapVals[key])
+
+        # Run sequence continuously
+        self.threadpool = QThreadPool()
+        print("Multithreading with maximum %d threads \n" % self.threadpool.maxThreadCount())
+        worker = Worker(self.runAutoTuning)  # Any other args, kwargs are passed to the run function
+        self.threadpool.start(worker)
+
+    def sequenceAnalysis(self, obj=''):
+        # self.mapVals['bestSState'] = self.bestSState
+        # self.mapVals['bestTmState'] = self.bestTmState
+        # self.mapVals['minVoltage'] = self.vMin
+        self.saveRawData()
+
+        return([])
+
+    def runAutoTuning(self):
+        self.arduino.write(self.state.encode())
+
 
 if __name__ == '__main__':
     seq = AutoTuning()

@@ -169,7 +169,7 @@ class AutoTuning(blankSeq.MRIBLANKSEQ):
         if x0 > self.seriesTarget:
             stateCs = self.getCs(0, 17, "1")
         else:
-            stateCs = "10000"
+            stateCs = 16
 
         stateCt = self.getCt(0, stateCs, 17, "1")
 

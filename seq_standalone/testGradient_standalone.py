@@ -24,10 +24,10 @@ def testGradient_standalone(
         bw = 0.1,
 
         gAxis = 0,
-        gFlattopTime = 4.0,
-        gRiseTime = 0.5,
-        gSteps = 2, # El minimo es 2
-        gAmp = 0.1, # 5 A/V AETechron conversion factor unbalanced wires 10 A/V balanced; 10 V/a.u. Ocra1 conversion factor; [0.1 a.u. 10 A]
+        gFlattopTime = 6.0,
+        gRiseTime = 0.5, #ms
+        gSteps = 8, # El minimo es 2
+        gAmp = 0.1, # balanced; 10 V/a.u. Ocra1 conversion factor; [0.1 a.u. 10 A]
         nRepetition = 100,
         extraTime = 100,
         plotSeq = 0,

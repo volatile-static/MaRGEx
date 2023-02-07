@@ -61,7 +61,8 @@ class RARE(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='shimming', string='Shimming (*1e4)', val=[-12.5, -12.5, 7.5], field='OTH')
         self.addParameter(key='parFourierFraction', string='Partial fourier fraction', val=1.0, field='OTH')
         self.addParameter(key='freqCal', string='Calibrate frequency (0 or 1)', val=1, field='OTH')
-        self.addParameter(key='gradSteps', string='Gradient steps', val=1, field='OTH')
+        self.addParameter(key='gradSteps', string='Gradient steps', val=8, field='OTH')
+        self.addParameter(key='gRiseTime', string='Gradient Rise Time (us)', val=500, field='OTH')
 
     def sequenceInfo(self):
         print(" ")
@@ -159,7 +160,9 @@ class RARE(blankSeq.MRIBLANKSEQ):
         self.fov = self.fov[self.axesOrientation]
         self.dfov = self.dfov[self.axesOrientation]
         self.freqOffset = self.freqOffset*1e6 # MHz
-        gradRiseTime = 400e-6       # s
+        self.gRiseTime = self.gRiseTime*1e-6
+        gradRiseTime = self.gRiseTime
+        #gradRiseTime = 500e-6       # s
         # gSteps = int(gradRiseTime*1e6/5)*0+1
         gSteps = self.gradSteps
         addRdPoints = 10             # Initial rd points to avoid artifact at the begining of rd
@@ -171,6 +174,7 @@ class RARE(blankSeq.MRIBLANKSEQ):
         self.mapVals['rfReAmp'] = rfReAmp
         self.mapVals['resolution'] = resolution
         self.mapVals['gradRiseTime'] = gradRiseTime
+        self.mapVals['gSteps'] = gSteps
         self.mapVals['randFactor'] = randFactor
         self.mapVals['addRdPoints'] = addRdPoints
 

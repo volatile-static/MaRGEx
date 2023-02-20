@@ -306,47 +306,48 @@ class AutoTuning(blankSeq.MRIBLANKSEQ):
     def getCtS(self, n0, stateCs, stateCm):
         # Sweep tuning capacitances until find a minimum in S11
         print("\nObtaining tuning capacitor...")
-        n = copy.copy(n0)
+        n = [n0]
 
         # First measurement
-        self.arduino.write((self.states[stateCs] + self.states[n] + self.states[stateCm] + "1").encode())
+        self.arduino.write((self.states[stateCs] + self.states[n[-1]] + self.states[stateCm] + "1").encode())
         while self.arduino.in_waiting == 0:
             time.sleep(0.1)
         result = self.arduino.readline()
         s11 = np.array(
             [float(value) for value in
              self.vna.readValues("data 0")[self.idf].split(" ")])  # "data 0"->S11, "data 1"->S21
-        s11dB = 20 * np.log10(np.abs(s11[0] + s11[1] * 1j))
-        s11dBp = copy.copy(s11dB)
-        print("S11 = %0.2f dB" % s11dB)
+        s11dB = [20 * np.log10(np.abs(s11[0] + s11[1] * 1j))]
+        print("S11 = %0.2f dB" % s11dB[-1])
 
         # Second measurement
-        if n == 31:
+        if n[-1] == 31:
             step = - 1
         else:
             step = + 1
-        n += step
-        self.arduino.write((self.states[stateCs] + self.states[n] + self.states[stateCm] + "1").encode())
+        n.append(n[-1]+step)
+        self.arduino.write((self.states[stateCs] + self.states[n[-1]] + self.states[stateCm] + "1").encode())
         while self.arduino.in_waiting == 0:
             time.sleep(0.1)
         result = self.arduino.readline()
         s11 = np.array(
             [float(value) for value in
              self.vna.readValues("data 0")[self.idf].split(" ")])  # "data 0"->S11, "data 1"->S21
-        s11dB = 20 * np.log10(np.abs(s11[0] + s11[1] * 1j))
-        print("S11 = %0.2f dB" % s11dB)
+        s11dB.append(20 * np.log10(np.abs(s11[0] + s11[1] * 1j)))
+        print("S11 = %0.2f dB" % s11dB[-1])
 
         # Check the direction to follow
-        if s11dB < s11dBp:
+        if s11dB[-1] < s11dB[-2]:
             step = step
         else:
             step = -step
+            n.reverse()
+            s11dB.reverse()
 
         # Sweep until the S11 starts to go up
-        while s11dB < s11dBp and n<31 and n>0:
+        while s11dB[-1] < s11dB[-2] and n[-1]<31 and n[-1]>0:
             s11dBp = copy.copy(s11dB)
-            n += step
-            self.arduino.write((self.states[stateCs] + self.states[n] + self.states[stateCm] + "1").encode())
+            n.append(n[-1]+step)
+            self.arduino.write((self.states[stateCs] + self.states[n[-1]] + self.states[stateCm] + "1").encode())
             while self.arduino.in_waiting == 0:
                 time.sleep(0.1)
             result = self.arduino.readline()
@@ -354,11 +355,11 @@ class AutoTuning(blankSeq.MRIBLANKSEQ):
                 [float(value) for value in
                  self.vna.readValues("data 0")[self.idf].split(" ")])  # "data 0"->S11, "data 1"->S21
             s11 = s11[0] + s11[1] * 1j
-            s11dB = 20 * np.log10(np.abs(s11))
-            print("S11 = %0.2f dB" % s11dB)
+            s11dB.append(20 * np.log10(np.abs(s11)))
+            print("S11 = %0.2f dB" % s11dB[-1])
 
         # Set the best state
-        stateCt = n - step
+        stateCt = n[np.argmin(np.array(s11dB))]
         self.arduino.write((self.states[stateCs] + self.states[stateCt] + self.states[stateCm] + "1").encode())
         while self.arduino.in_waiting == 0:
             time.sleep(0.1)
@@ -593,7 +594,35 @@ class AutoTuningTest(blankSeq.MRIBLANKSEQ):
         return([])
 
     def runAutoTuning(self):
+        # Open nanoVNA
+        # scan serial ports and connect
+        interface = get_interfaces()[0]
+        interface.open()
+        interface.timeout = 0.05
+        time.sleep(0.1)
+        self.vna = get_VNA(interface)
+
+        # Get frequencies
+        self.frequencies = np.array(self.vna.readFrequencies()) * 1e-6
+        self.idf = np.argmin(abs(self.frequencies - hw.larmorFreq))
+
+        # Get initial impedance
         self.arduino.write(self.state.encode())
+        while self.arduino.in_waiting == 0:
+            time.sleep(0.1)
+        result = self.arduino.readline()
+        s11 = np.array(
+            [float(value) for value in
+             self.vna.readValues("data 0")[self.idf].split(" ")])  # "data 0"->S11, "data 1"->S21
+        s11 = s11[0] + s11[1] * 1j
+        impedance = 50 * (1. + s11) / (1. - s11)
+        r0 = impedance.real
+        x0 = impedance.imag
+        print("\nInput impedance:")
+        print("R = %0.2f Ohms" % r0)
+        print("X = %0.2f Ohms" % x0)
+
+        interface.close()
 
 
 if __name__ == '__main__':

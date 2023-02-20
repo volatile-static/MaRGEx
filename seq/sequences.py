@@ -21,7 +21,7 @@ import seq.shimmingSweep as shimming
 import seq.sliceSelection as sliceSelection
 import seq.fov as fov
 import seq.sweepImage as sweep
-import seq.autoTuning as autoTuning
+from seq.autoTuning import AutoTuning as AutoTuningParent
 
 class RARE(rare.RARE):
     def __init__(self): super(RARE, self).__init__()
@@ -71,7 +71,7 @@ class FOV(fov.FOV):
 class SWEEP(sweep.SweepImage):
     def __init__(self): super(SWEEP, self).__init__()
 #
-class AutoTuning(autoTuning.AutoTuning):
+class AutoTuning(AutoTuningParent):
     def __init(self): super(AutoTuning, self).__init__()
 
 """

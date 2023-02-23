@@ -23,12 +23,12 @@ def testGradient_standalone(
         larmorFreq = 3.060,
         bw = 0.1,
 
-        gAxis = 0,
-        gFlattopTime = 6.0,
+        gAxis = 2,
+        gFlattopTime=6.0,
         gRiseTime = 0.5, #ms
-        gSteps = 8, # El minimo es 2
+        gSteps =100, # El minimo es 2
         gAmp = 0.1, # balanced; 10 V/a.u. Ocra1 conversion factor; [0.1 a.u. 10 A]
-        nRepetition = 100,
+        nRepetition = 1,
         extraTime = 100,
         plotSeq = 0,
         init_gpa = False,):

@@ -289,7 +289,7 @@ class RARE(blankSeq.MRIBLANKSEQ):
                 tEx = 20e3+self.repetitionTime*repeIndex+self.inversionTime+self.preExTime
 
                 # First I do a noise measurement.
-                if repeIndex==0 :
+                if repeIndex==(0):
                     t0 = tEx-self.preExTime-self.inversionTime-4*self.acqTime
                     self.rxGate(t0, self.acqTime+2*addRdPoints/BW)
                     acqPoints += nRD
@@ -313,7 +313,7 @@ class RARE(blankSeq.MRIBLANKSEQ):
                     orders = orders+gSteps*6
 
                 # DC gradient if desired
-                if (repeIndex==0 or repeIndex>=self.dummyPulses) and dc==True:
+                if (repeIndex==(self.dummyPulses-1) or repeIndex>=self.dummyPulses) and dc==True:
                     t0 = tEx-10e3
                     self.gradTrap(t0, gradRiseTime, 10e3+self.echoSpacing*(self.etl+1), rdGradAmplitude, gSteps, self.axesOrientation[0], self.shimming)
                     orders = orders+gSteps*2
@@ -323,7 +323,7 @@ class RARE(blankSeq.MRIBLANKSEQ):
                 self.rfRecPulse(t0,self.rfExTime,rfExAmp,0)
 
                 # Dephasing readout
-                if (repeIndex==0  or repeIndex>=self.dummyPulses) and dc==False:
+                if (repeIndex==(self.dummyPulses-1)  or repeIndex>=self.dummyPulses) and dc==False:
                     t0 = tEx+self.rfExTime/2-hw.gradDelay
                     self.gradTrap(t0, gradRiseTime, self.rdDephTime, rdDephAmplitude*self.rdPreemphasis, gSteps, self.axesOrientation[0], self.shimming)
                     orders = orders+gSteps*2
@@ -344,13 +344,13 @@ class RARE(blankSeq.MRIBLANKSEQ):
                         orders = orders+gSteps*4
 
                     # Readout gradient
-                    if (repeIndex==0 or repeIndex>=self.dummyPulses) and dc==False:         # This is to account for dummy pulses
+                    if (repeIndex==(self.dummyPulses-1) or repeIndex>=self.dummyPulses) and dc==False:         # This is to account for dummy pulses
                         t0 = tEcho-self.rdGradTime/2-gradRiseTime-hw.gradDelay
                         self.gradTrap(t0, gradRiseTime, self.rdGradTime, rdGradAmplitude, gSteps, self.axesOrientation[0], self.shimming)
                         orders = orders+gSteps*2
 
                     # Rx gate
-                    if (repeIndex==0 or repeIndex>=self.dummyPulses):
+                    if (repeIndex==(self.dummyPulses-1) or repeIndex>=self.dummyPulses):
                         t0 = tEcho-self.acqTime/2-addRdPoints/BW
                         self.rxGate(t0, self.acqTime+2*addRdPoints/BW)
                         acqPoints += nRD
@@ -480,7 +480,7 @@ class RARE(blankSeq.MRIBLANKSEQ):
                 dummyData = np.average(dummyData, axis=0)
                 self.mapVals['dummyData'] = dummyData
                 overData = np.reshape(overData, (-1, self.etl, nRD*hw.oversamplingFactor))
-                overData = self.fixEchoPosition(dummyData, overData)
+                # overData = self.fixEchoPosition(dummyData, overData)
                 overData = np.reshape(overData, -1)
 
             # Generate dataFull
@@ -496,6 +496,8 @@ class RARE(blankSeq.MRIBLANKSEQ):
             if nBatches>1:
                 dataFullA = np.reshape(dataFullA, (nBatches-1, self.nScans, -1, nRD))
                 dataFullB = np.reshape(dataFullB, (1, self.nScans, -1, nRD))
+            else:
+                dataFull = np.reshape(dataFull, (nBatches, self.nScans, -1, nRD))
             for scan in range(self.nScans):
                 if nBatches>1:
                     dataProv[scan, :] = np.concatenate((np.reshape(dataFullA[:,scan,:,:],-1), np.reshape(dataFullB[:,scan,:,:],-1)), axis=0)

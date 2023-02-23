@@ -39,7 +39,7 @@ from worker import Worker
 st = pdb.set_trace
 import copy
 import configs.hw_config as hw
-import bm4d
+# import bm4d
 
 # Import sequences
 from seq.sequences import defaultsequences

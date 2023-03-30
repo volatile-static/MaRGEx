@@ -30,7 +30,7 @@ def testSE_standalone(
         nPoints = 200,
         acqTime = 4.0,
         repetitionTime = 50,
-        nRepetitions  = 20,
+        nRepetitions  = 1,
         nScans = 1,
         acqCenter = 0.0,
         plotSeq = 0,

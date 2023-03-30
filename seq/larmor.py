@@ -71,7 +71,8 @@ class Larmor(blankSeq.MRIBLANKSEQ):
         rfExFA = self.mapVals['rfExFA'] / 180 * np.pi  # rads
         rfExTime = self.mapVals['rfExTime']  # us
         rfReFA = self.mapVals['rfReFA'] / 180 * np.pi  # rads
-        rfReTime = self.mapVals['rfReTime']  # us
+        #rfReTime = self.mapVals['rfReTime']  # us
+        rfReTime = self.mapVals['rfExTime'] * 2
         repetitionTime = self.mapVals['repetitionTime'] * 1e3  # us
         bw = self.mapVals['bw'] * 1e-3  # MHz
         dF = self.mapVals['dF'] * 1e-6  # MHz

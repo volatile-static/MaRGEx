@@ -70,4 +70,4 @@ if __name__ == '__main__':
     dicom_image.meta_data["NumberOfFrames"] = allSlices
     dicom_image.image2Dicom()
     nameDcmFile = name + ".dcm"
-    dicom_image.save("C:/Users/Physio MRI/Desktop/Dicom prueva/Ejemplo_1.dcm")
+    dicom_image.save("Dicom prueva/Ejemplo_1.dcm")

@@ -24,6 +24,10 @@ import seq.testSE as testSE
 import seq.sweepImage as sweep
 # import seq.autoTuning as autoTuning
 import seq.localizer as localizer
+import seq.softFID as softFID
+
+class SoftFID(softFID.SoftFID):
+    def __init__(self): super(SoftFID, self).__init__()
 
 class RARE(rare.RARE):
     def __init__(self): super(RARE, self).__init__()
@@ -91,6 +95,7 @@ defaultsequences = {
     # 'PETRA': PETRA(),
     # 'HASTE': HASTE(),
     # 'AutoTuning': AutoTuning(),
+    'SoftFID': SoftFID(),
     'FID': FID(),
     'Larmor': Larmor(),
     'Noise': Noise(),

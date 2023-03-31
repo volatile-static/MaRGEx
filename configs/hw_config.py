@@ -7,20 +7,16 @@
 # X axis: 25 mT/m/o.u., 0.5 mT/m/A, 2.5 mT/m/V
 # Y axis: 40 mT/m/o.u., 0.8 mT/m/A, 4.0 mT/m/V
 # Z axis: 35 mT/m/o.u., 0.7 mT/m/A, 3.5 mT/m/V
+
+from configs import tabletop_cfg
+# from configs import bedside_cfg
 import numpy as np
 
-gFactor = [0.025, 0.040, 0.035] # (X, Y, Z) in T/m/o.u.
-slewRate = 1000 # us/o.u., slew rate for gradient rises
-stepsRate = 200 # steps/o.u., steps rate for gradient rises
 gammaB = 42.56e6 # Hz/T, Gyromagnetic ratio
-blkTime = 15 # us, blanking time of Barthel's RFPA
-gradDelay = 9 # Gradient amplifier delay (us)
 oversamplingFactor = 6 # Rx oversampling
 maxRdPoints = 2**18 # Maximum number of points to be acquired by the red pitaya
 maxOrders = 2**14 # Maximum number of orders to be processed by the red pitaya
-deadTime = 400 # us, RF coil dead time
-b1Efficiency = np.pi/(0.3*70) # rads / (a.u. * us)
-larmorFreq = 3.066 # MHz
+deadTime = 60 # us, RF coil dead time
 cicDelayPoints = 3 # to account for signal delay from red pitaya due to cic filter
 addRdPoints = 10 # to account for wrong first points after decimation
 adcFactor = 13.788 # mV/adcUnit
@@ -32,4 +28,3 @@ dfov = [0.0, 0.0, 0.0]
 bash_path = "D:\Git\git-bash.exe" # use "gnome-terminal" for genome linux
 rp_ip_address = "192.168.1.101"
 rp_version = "rp-122"
-

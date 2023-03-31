@@ -6,3 +6,8 @@ slewRate = 1000 # us/o.u., slew rate for gradient rises
 stepsRate = 200 # steps/o.u., steps rate for gradient rises
 blkTime = 35 # us, blanking time of Barthel's RFPA
 gradDelay = 9 # Gradient amplifier delay (us)
+antenna_dict = {
+    "头": np.pi / (0.225 * 100), 
+    "膝": np.pi / (0.225 * 100), 
+    "腕": np.pi / (0.225 * 100)
+}

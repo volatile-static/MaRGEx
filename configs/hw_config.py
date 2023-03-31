@@ -10,7 +10,6 @@
 
 from configs import tabletop_cfg
 # from configs import bedside_cfg
-import numpy as np
 
 gammaB = 42.56e6 # Hz/T, Gyromagnetic ratio
 oversamplingFactor = 6 # Rx oversampling
@@ -22,7 +21,6 @@ addRdPoints = 10 # to account for wrong first points after decimation
 adcFactor = 13.788 # mV/adcUnit
 arduinoPort = 'COM7'
 scanner_name = "Physio V1.01"
-antenna_dict = {"RF01": np.pi/(0.3*70), "RF02": np.pi/(0.3*70)}
 fov = [20.0, 20.0, 20.0]
 dfov = [0.0, 0.0, 0.0]
 bash_path = "D:\Git\git-bash.exe" # use "gnome-terminal" for genome linux

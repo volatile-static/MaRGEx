@@ -20,8 +20,8 @@ arduinoPort = 'COM7'
 scanner_name = "Physio V1.01"
 fov = [20.0, 20.0, 20.0]
 dfov = [0.0, 0.0, 0.0]
-bash_path = "D:\Git\git-bash.exe" # use "gnome-terminal" for genome linux
-rp_ip_address = "192.168.1.101"
+bash_path = "gnome-terminal" # "D:\Git\git-bash.exe" 
+rp_ip_address = "192.168.1.103"
 rp_version = "rp-122"
 
 from configs import tabletop_cfg as cfg

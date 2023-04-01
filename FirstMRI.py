@@ -8,7 +8,6 @@ import os
 import sys
 from PyQt5.QtWidgets import QApplication
 import cgitb
-from configs import sys_config
 
 # *****************************************************************************
 # Add path to the working directory
@@ -21,6 +20,7 @@ for char in path:
     ii += 1
 # ******************************************************************************
 
+from configs import sys_config
 VERSION = "0.3.0"
 AUTHORA = "Yolanda Vives"
 AUTHORB = "J.M. Algarín"

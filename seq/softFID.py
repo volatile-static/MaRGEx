@@ -22,12 +22,11 @@ class SoftFID(blankSeq.MRIBLANKSEQ):
     def __init__(self):
         super(SoftFID, self).__init__()
         # Input the parameters
-        self.addParameter(key='seqName', string='FIDinfo', val='FID')
+        self.addParameter(key='seqName', string='FIDinfo', val='SoftFID')
         self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=hw.larmorFreq, field='RF')
         self.addParameter(key='rfExAmp', string='RF excitation amplitude (a.u.)', val=0.3, field='RF')
         self.addParameter(key='rfExTime', string='RF excitation time (us)', val=30.0, field='RF')
-        self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=1000, field='SEQ')
-        self.addParameter(key='shimming', string='Shimming', val=0, field='OTH')
+        self.addParameter(key='shimming', string='Shimming', val=[0, 0, 666], field='OTH')
 
 
     def sequenceInfo(self):
@@ -43,7 +42,6 @@ class SoftFID(blankSeq.MRIBLANKSEQ):
         rfExAmp = self.mapVals['rfExAmp']
         rfExTime = self.mapVals['rfExTime']  # us
         deadTime = hw.deadTime
-        repetitionTime = self.mapVals['repetitionTime'] * 1e-3
         shimming = np.array(self.mapVals['shimming'])*1e-4
         shimmingTime = 2e3  # us
         nPoints = 100
@@ -64,7 +62,7 @@ class SoftFID(blankSeq.MRIBLANKSEQ):
         self.rfRecPulse(shimmingTime, rfExTime, rfExAmp)
         t0 = shimmingTime + hw.blkTime + rfExTime + deadTime
         self.rxGateSync(t0, acqTime)
-        self.endSequence(repetitionTime)
+        self.endSequence(t0 + acqTime + 1)
 
         if not self.floDict2Exp():
             return 0

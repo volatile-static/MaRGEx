@@ -46,11 +46,11 @@ class SoftFID(blankSeq.MRIBLANKSEQ):
 
         # Create the sequence
         self.iniSequence(20, shimming)
-        self.rfRecPulse(shimmingTime, rfExTime, rfExAmp)
-        # self.rfSincPulse(shimmingTime, rfExTime, rfExAmp)
+        # self.rfRecPulse(shimmingTime, rfExTime, rfExAmp)
+        self.rfSincPulse(shimmingTime, rfExTime, rfExAmp)
         t0 = shimmingTime + hw.blkTime + rfExTime + deadTime
         self.rxGateSync(t0, acqTime)
-        self.endSequence(t0 + acqTime + 1)
+        self.endSequence(1e6)
 
         if not self.floDict2Exp():
             return 0

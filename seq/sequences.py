@@ -25,9 +25,17 @@ import seq.sweepImage as sweep
 # import seq.autoTuning as autoTuning
 import seq.localizer as localizer
 import seq.softFID as softFID
+import seq.gradientEcho as gradientEcho
+import seq.rfopt as rfopt
 
 class SoftFID(softFID.SoftFID):
     def __init__(self): super(SoftFID, self).__init__()
+
+class GradientEcho(gradientEcho.GradientEcho):
+    def __init__(self): super(GradientEcho, self).__init__()
+
+class RFOPT(rfopt.RFOPT):
+    def __init__(self): super(RFOPT, self).__init__()
 
 class RARE(rare.RARE):
     def __init__(self): super(RARE, self).__init__()
@@ -68,8 +76,8 @@ class EDDYCURRENTS(eddycurrents.EDDYCURRENTS):
 class IR(inversionRecovery.InversionRecovery):
     def __init__(self): super(IR, self).__init__()
 
-# class ADCtest(ADCdelayTest.ADCdelayTest):
-#     def __init__(self): super(ADCtest, self).__init__()
+class ADCtest(ADCdelayTest.ADCdelayTest):
+    def __init__(self): super(ADCtest, self).__init__()
 
 class Shimming(shimming.ShimmingSweep):
     def __init__(self): super(Shimming, self).__init__()
@@ -95,6 +103,9 @@ defaultsequences = {
     # 'PETRA': PETRA(),
     # 'HASTE': HASTE(),
     # 'AutoTuning': AutoTuning(),
+    # 'SliceSelection': SliceSelection(),
+    'GradientEcho': GradientEcho(),
+    'RFOPT': RFOPT(),
     'SoftFID': SoftFID(),
     'FID': FID(),
     'Larmor': Larmor(),
@@ -104,7 +115,7 @@ defaultsequences = {
     'CPMG': CPMG(),
     'EDDYCURRENTS': EDDYCURRENTS(),
     'InversionRecovery': IR(),
-    # 'ADCtest': ADCtest(),
+    'ADCtest': ADCtest(),
     'Shimming': Shimming(),
     'SWEEP': SWEEP(),
     'testSE': testSE(),

@@ -17,12 +17,15 @@ class GradientEcho(blankSeq.MRIBLANKSEQ):
             key='rfExTime', string='RF excitation time (us)', val=50.0, field='RF')
         self.addParameter(key='shimming', string='线性匀场',
                           val=[0, 0, 666], field='OTH')
-        # self.addParameter(key='echoTime', string='TE', val=0, field='SEQ')
-        self.addParameter(key='gradientChannel', string='梯度通道(x|y|z)', val='x', field='SEQ')
-        self.addParameter(key='gradientAmplitude', string='梯度幅度', val=0.1, field='SEQ')
-        self.addParameter(key='slewRate', string='梯度斜率', val=0.1, field='SEQ')
-        self.addParameter(key='dephaseTime', string='失相位时间', val=0.1, field='SEQ')
-        self.addParameter(key='refocusTime', string='重聚时间', val=0.1, field='SEQ')
+        self.addParameter(key='echoTime', string='TE (us)',
+                          val=200, field='SEQ')
+        self.addParameter(key='gradientChannel',
+                          string='梯度通道 (0/1/2)', val=0, field='SEQ')
+        self.addParameter(key='gradientAmplitude',
+                          string='梯度幅度', val=0.1, field='SEQ')
+        # self.addParameter(key='slewRate', string='梯度斜率', val=0.1, field='SEQ')
+        # self.addParameter(key='dephaseTime', string='失相位时间', val=0.1, field='SEQ')
+        # self.addParameter(key='refocusTime', string='重聚时间', val=0.1, field='SEQ')
 
     def sequenceInfo(self):
         print("用软脉冲的FID")
@@ -34,11 +37,13 @@ class GradientEcho(blankSeq.MRIBLANKSEQ):
         larmorFreq = self.mapVals['larmorFreq']  # MHz
         rfExAmp = self.mapVals['rfExAmp']
         rfExTime = self.mapVals['rfExTime']  # us
-        deadTime = hw.deadTime
         shimming = np.array(self.mapVals['shimming'])*1e-4
         shimmingTime = 2e3  # us
-        nPoints = 100
-        acqTime = 1e3  # us
+        echoTime = self.mapVals['echoTime']  # us
+        gradientTime = (echoTime - rfExTime/2) / 2
+        gradientAmplitude = self.mapVals['gradientAmplitude']
+        nPoints = 256
+        acqTime = gradientTime * 2  # us
         bw = nPoints / acqTime  # MHz
 
         # Initialize the experiment
@@ -51,11 +56,15 @@ class GradientEcho(blankSeq.MRIBLANKSEQ):
         self.mapVals['bw'] = bw
 
         # Create the sequence
-        self.iniSequence(20, shimming)
-        # self.rfRecPulse(shimmingTime, rfExTime, rfExAmp)
-        self.rfSincPulse(shimmingTime, rfExTime, rfExAmp)
-        t0 = shimmingTime + hw.blkTime + rfExTime + deadTime
-        self.rxGateSync(t0, acqTime)
+        tim = 20
+        self.iniSequence(tim, shimming)
+        tim += shimmingTime
+        self.rfRecPulse(tim, rfExTime, rfExAmp)
+        tim += hw.blkTime + rfExTime
+        self.gradTrapAmplitude(tim, -gradientAmplitude, gradientTime, shimming)
+        tim += gradientTime
+        self.gradTrapAmplitude(tim, gradientAmplitude, gradientTime*2, shimming)
+        self.rxGateSync(tim, gradientTime*2)
         self.endSequence(1e6)
 
         if not self.floDict2Exp():

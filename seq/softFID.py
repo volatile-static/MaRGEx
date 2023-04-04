@@ -29,7 +29,8 @@ class SoftFID(blankSeq.MRIBLANKSEQ):
         print("用软脉冲的FID")
 
     def sequenceTime(self):
-        return self.mapVals['repetitionTime'] * self.mapVals['nScan'] / 1e3  # sec
+        # sec
+        return self.mapVals['repetitionTime'] * self.mapVals['nScan'] / 1e3
 
     def sequenceRun(self, plotSeq=0):
         larmorFreq = self.mapVals['larmorFreq']  # MHz
@@ -46,9 +47,10 @@ class SoftFID(blankSeq.MRIBLANKSEQ):
         bw = nPoints / acqTime  # MHz
         repetitionTime = self.mapVals['repetitionTime']*1e3  # us
         nScan = self.mapVals['nScan']
-        if nScan < 1: return 0
+        if nScan < 1:
+            return 0
         nLobes = self.mapVals['rfLobes']
-        if (nLobes + 1) % 2 != 0:
+        if nLobes > 0 and nLobes % 2 == 0:
             print('Number of lobes must be odd!')
             return 0
 
@@ -64,13 +66,13 @@ class SoftFID(blankSeq.MRIBLANKSEQ):
         # Create the sequence
         self.iniSequence(20, shimming)
         for i in range(nScan):
-            tEx = shimmingTime + nScan * repetitionTime
+            tEx = shimmingTime + i * repetitionTime
             rfExAmp = rfAmpMin + (rfAmpMax - rfAmpMin) * i / nScan
             if nLobes == 0:
                 self.rfRecPulse(tEx, rfExTime, rfExAmp)
             else:
                 self.rfSincPulse(tEx, rfExTime, rfExAmp, 0, nLobes)
-            
+
             tAq = tEx + hw.blkTime + rfExTime + hw.deadTime
             self.rxGateSync(tAq, acqTime)
         self.endSequence(nScan * repetitionTime)
@@ -88,10 +90,10 @@ class SoftFID(blankSeq.MRIBLANKSEQ):
         self.expt.__del__()
 
     def sequenceAnalysis(self):
-        xAxis = np.linspace(self.mapVals['rfAmpMin'],
-                                self.mapVals['rfAmpMax'], nScan)
-        yAxis = []
         nScan = self.mapVals['nScan']
+        xAxis = np.linspace(self.mapVals['rfAmpMin'],
+                            self.mapVals['rfAmpMax'], nScan)
+        yAxis = []
         for i in range(nScan):
             signal = self.matrix[i, :]
 
@@ -99,10 +101,11 @@ class SoftFID(blankSeq.MRIBLANKSEQ):
                 np.fft.ifftn(np.fft.ifftshift(signal))))
             yAxis.append(np.max(np.abs(spectrum)))
 
+        self.saveRawData()
         return [{
             'widget': 'curve',
             'xData': xAxis,
-            'yData': yAxis,
+            'yData': [yAxis],
             'xLabel': 'RF amplitude (a.u.)',
             'yLabel': 'Spectrum (a.u.)',
             'title': 'Spectrum vs. RF amplitude',
@@ -110,46 +113,3 @@ class SoftFID(blankSeq.MRIBLANKSEQ):
             'row': 0,
             'col': 0
         }]
-        signal = self.mapVals['data']
-        bw = self.mapVals['bw']*1e3  # kHz
-        nPoints = 100
-        deadTime = hw.deadTime*1e-3  # ms
-        rfExTime = self.mapVals['rfExTime']*1e-3  # ms
-        tVector = np.linspace(rfExTime/2 + deadTime + 0.5/bw,
-                              rfExTime/2 + deadTime + (nPoints-0.5)/bw, nPoints)
-        fVector = np.linspace(-bw/2, bw/2, nPoints)
-        spectrum = np.abs(np.fft.ifftshift(
-            np.fft.ifftn(np.fft.ifftshift(signal))))
-        fitedLarmor = self.mapVals['larmorFreq'] + \
-            fVector[np.argmax(np.abs(spectrum))] * 1e-3
-        print('Larmor frequency: %1.5f MHz' % fitedLarmor)
-        self.mapVals['signalVStime'] = [tVector, signal]
-        self.mapVals['spectrum'] = [fVector, spectrum]
-        self.saveRawData()
-
-        # Add time signal to the layout
-        result1 = {
-            'widget': 'curve',
-            'xData': tVector,
-            'yData': [np.abs(signal), np.real(signal), np.imag(signal)],
-            'xLabel': 'Time (ms)',
-            'yLabel': 'Signal amplitude (mV)',
-            'title': 'Signal vs time',
-            'legend': ['abs', 'real', 'imag'],
-            'row': 0,
-            'col': 0
-        }
-
-        # Add frequency spectrum to the layout
-        result2 = {
-            'widget': 'curve',
-            'xData': fVector,
-            'yData': [spectrum],
-            'xLabel': 'Frequency (kHz)',
-            'yLabel': 'Spectrum amplitude (a.u.)',
-            'title': 'Spectrum',
-            'legend': [''],
-            'row': 1,
-            'col': 0
-        }
-        return [result1, result2]

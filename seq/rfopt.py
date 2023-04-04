@@ -18,10 +18,10 @@ class RFOPT(blankSeq.MRIBLANKSEQ):
         self.addParameter(
             key='rfLobes', string='sinc波峰个数 (0为方波)', val=0, field='RF')
         self.addParameter(key='tau', string='回波间隔 (ms)',
-                          val=1, field='SEQ')
-        self.addParameter(key='tau2', string='回波间隔2 (ms)', val=1, field='SEQ')
+                          val=1., field='SEQ')
+        self.addParameter(key='tau2', string='回波间隔2 (ms)', val=1., field='SEQ')
         self.addParameter(key='acqTime', string='采样时长 (ms)',
-                          val=2, field='SEQ')
+                          val=0.2, field='SEQ')
         self.addParameter(key='shimming', string='Shimming',
                           val=[0, 0, 666], field='OTH')
         
@@ -48,7 +48,7 @@ class RFOPT(blankSeq.MRIBLANKSEQ):
             return 0
         bw = nPoints / acqTime  # MHz
         nLobes = self.mapVals['rfLobes']
-        if (nLobes + 1) % 2 != 0:
+        if nLobes > 0 and nLobes % 2 == 0:
             print('Number of lobes must be odd!')
             return 0
 
@@ -96,13 +96,13 @@ class RFOPT(blankSeq.MRIBLANKSEQ):
             dataFull = self.decimate(rxd['rx0'], 1)
             self.mapVals['data'] = dataFull
             # 将dataFull分成两半，分别对应两个回波
-            self.echo1 = dataFull[:dataFull.size]
-            self.echo2 = dataFull[dataFull.size:]
+            self.echo1 = dataFull[:dataFull.size//2]
+            self.echo2 = dataFull[dataFull.size//2:]
 
         self.expt.__del__()
 
     def sequenceAnalysis(self):
-        tVector = np.linspace(0, self.mapVals['acqTime'], 256)
+        tVector = np.linspace(0, self.mapVals['acqTime'], self.echo1.size)
         self.saveRawData()
 
         result1 = {
@@ -111,7 +111,7 @@ class RFOPT(blankSeq.MRIBLANKSEQ):
             'yData': [np.abs(self.echo1), np.real(self.echo1), np.imag(self.echo1)],
             'xLabel': 'Time (ms)',
             'yLabel': 'Signal amplitude (mV)',
-            'title': 'Signal vs time',
+            'title': 'Spin Echo',
             'legend': ['abs', 'real', 'imag'],
             'row': 0,
             'col': 0
@@ -122,7 +122,7 @@ class RFOPT(blankSeq.MRIBLANKSEQ):
             'yData': [np.abs(self.echo2), np.real(self.echo2), np.imag(self.echo2)],
             'xLabel': 'Time (ms)',
             'yLabel': 'Signal amplitude (mV)',
-            'title': 'Signal vs time',
+            'title': 'Stimulated Echo',
             'legend': ['abs', 'real', 'imag'],
             'row': 0,
             'col': 1

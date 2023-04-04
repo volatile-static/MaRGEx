@@ -17,6 +17,7 @@ class RFOPT(blankSeq.MRIBLANKSEQ):
             key='rfExTime', string='RF excitation time (us)', val=30.0, field='RF')
         self.addParameter(key='shimming', string='Shimming',
                           val=[0, 0, 666], field='OTH')
+        
 
     def sequenceInfo(self):
         print("用软脉冲的FID")

@@ -106,7 +106,7 @@ class SoftFID(blankSeq.MRIBLANKSEQ):
             'xLabel': 'RF amplitude (a.u.)',
             'yLabel': 'Spectrum (a.u.)',
             'title': 'Spectrum vs. RF amplitude',
-            'legend': 'abs',
+            'legend': ['abs'],
             'row': 0,
             'col': 0
         }]

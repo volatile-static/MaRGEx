@@ -28,7 +28,7 @@ class GradientEcho(blankSeq.MRIBLANKSEQ):
         # self.addParameter(key='refocusTime', string='重聚时间', val=0.1, field='SEQ')
 
     def sequenceInfo(self):
-        print("用软脉冲的FID")
+        print("单纯的梯度回波")
 
     def sequenceTime(self):
         return (0)
@@ -40,10 +40,10 @@ class GradientEcho(blankSeq.MRIBLANKSEQ):
         shimming = np.array(self.mapVals['shimming'])*1e-4
         shimmingTime = 2e3  # us
         echoTime = self.mapVals['echoTime']  # us
-        gradientTime = (echoTime - rfExTime/2) / 2
         gradientAmplitude = self.mapVals['gradientAmplitude']
+        dephaseTime = (echoTime - rfExTime/2) / 2
+        acqTime = dephaseTime * 2  # us
         nPoints = 256
-        acqTime = gradientTime * 2  # us
         bw = nPoints / acqTime  # MHz
 
         # Initialize the experiment
@@ -61,10 +61,10 @@ class GradientEcho(blankSeq.MRIBLANKSEQ):
         tim += shimmingTime
         self.rfRecPulse(tim, rfExTime, rfExAmp)
         tim += hw.blkTime + rfExTime
-        self.gradTrapAmplitude(tim, -gradientAmplitude, gradientTime, shimming)
-        tim += gradientTime
-        self.gradTrapAmplitude(tim, gradientAmplitude, gradientTime*2, shimming)
-        self.rxGateSync(tim, gradientTime*2)
+        self.gradTrapAmplitude(tim, -gradientAmplitude, dephaseTime, shimming)
+        tim += dephaseTime
+        self.gradTrapAmplitude(tim, gradientAmplitude, acqTime, shimming)
+        self.rxGateSync(tim, acqTime)
         self.endSequence(1e6)
 
         if not self.floDict2Exp():

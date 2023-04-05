@@ -16,7 +16,7 @@ class SoftFID(blankSeq.MRIBLANKSEQ):
         self.addParameter(
             key='rfAmpMax', string='激发功率上限 (a.u.)', val=0.08, field='RF')
         self.addParameter(
-            key='rfExTime', string='激发脉冲宽度 (ms)', val=50.0, field='RF')
+            key='rfExTime', string='激发脉冲宽度 (μs)', val=50.0, field='RF')
         self.addParameter(
             key='rfLobes', string='sinc波峰个数 (0为方波)', val=0, field='RF')
         self.addParameter(key='shimming', string='线性匀场',

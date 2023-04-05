@@ -12,16 +12,22 @@ class RFOPT(blankSeq.MRIBLANKSEQ):
         self.addParameter(
             key='larmorFreq', string='中心频率 (MHz)', val=hw.larmorFreq, field='RF')
         self.addParameter(
-            key='rfExAmp', string='RF excitation amplitude (a.u.)', val=0.07, field='RF')
+            key='rfAmpMin', string='激发功率下限 (a.u.)', val=0.05, field='RF')
         self.addParameter(
-            key='rfExTime', string='激发脉冲宽度 (ms)', val=50.0, field='RF')
+            key='rfAmpMax', string='激发功率上限 (a.u.)', val=0.08, field='RF')
+        self.addParameter(key='rfAmpStep', string='激发功率步进 (a.u.)',
+                            val=0.001, field='RF')
+        self.addParameter(
+            key='rfExTime', string='激发脉冲宽度 (μs)', val=50.0, field='RF')
         self.addParameter(
             key='rfLobes', string='sinc波峰个数 (0为方波)', val=0, field='RF')
         self.addParameter(key='tau', string='回波间隔 (ms)',
                           val=1., field='SEQ')
-        self.addParameter(key='tau2', string='回波间隔2 (ms)', val=1., field='SEQ')
+        self.addParameter(key='tau2', string='STE间隔 (ms)', val=1., field='SEQ')
         self.addParameter(key='acqTime', string='采样时长 (ms)',
                           val=0.2, field='SEQ')
+        self.addParameter(key='repetitionTime',
+                          string='TR(ms)', val=1500, field='SEQ')
         self.addParameter(key='shimming', string='Shimming',
                           val=[0, 0, 666], field='OTH')
         
@@ -30,12 +36,21 @@ class RFOPT(blankSeq.MRIBLANKSEQ):
         print("三个90°脉冲时两次回波幅值相同")
 
     def sequenceTime(self):
-        return (0)
+        return self.mapVals['repetitionTime']/1000  # sec
 
     def sequenceRun(self, plotSeq=0):
         larmorFreq = self.mapVals['larmorFreq']  # MHz
-        rfExAmp = self.mapVals['rfExAmp']
         rfExTime = self.mapVals['rfExTime']  # us
+        rfAmpMin = self.mapVals['rfAmpMin']
+        rfAmpMax = self.mapVals['rfAmpMax']
+        rfAmpStep = self.mapVals['rfAmpStep']
+        try:
+            self.rfExAmp += rfAmpStep
+            if self.rfExAmp > rfAmpMax:
+                self.rfExAmp = rfAmpMin
+        except:
+            self.rfExAmp = rfAmpMin
+        print('激发功率：', self.rfExAmp)
         shimming = np.array(self.mapVals['shimming'])*1e-4
         shimmingTime = 2e3  # us
         tau = self.mapVals['tau']*1e3  # us
@@ -63,9 +78,9 @@ class RFOPT(blankSeq.MRIBLANKSEQ):
 
         def rfPulse(tStart):
             if nLobes == 0:
-                self.rfRecPulse(tStart, rfExTime, rfExAmp)
+                self.rfRecPulse(tStart, rfExTime, self.rfExAmp)
             else:
-                self.rfSincPulse(tStart, rfExTime, rfExAmp, 0, nLobes)
+                self.rfSincPulse(tStart, rfExTime, self.rfExAmp, 0, nLobes)
 
         # Create the sequence
         tim = 20
@@ -82,10 +97,10 @@ class RFOPT(blankSeq.MRIBLANKSEQ):
         tim += acqTime + tau2
         # 第三个脉冲
         rfPulse(tim)
-        tim += hw.blkTime + rfExTime + tau_extend
+        tim += tau_extend
         # 第二个回波
         self.rxGateSync(tim, acqTime)
-        self.endSequence(1e6)
+        self.endSequence(self.mapVals['repetitionTime']*1000)
 
         if not self.floDict2Exp():
             return 0
@@ -103,12 +118,15 @@ class RFOPT(blankSeq.MRIBLANKSEQ):
 
     def sequenceAnalysis(self):
         tVector = np.linspace(0, self.mapVals['acqTime'], self.echo1.size)
+        hahnEcho = np.abs(self.echo1)
+        ste = np.abs(self.echo2)
+        print("回波峰值：", np.max(hahnEcho), np.max(ste))
         self.saveRawData()
 
         result1 = {
             'widget': 'curve',
             'xData': tVector,
-            'yData': [np.abs(self.echo1), np.real(self.echo1), np.imag(self.echo1)],
+            'yData': [hahnEcho, np.real(self.echo1), np.imag(self.echo1)],
             'xLabel': 'Time (ms)',
             'yLabel': 'Signal amplitude (mV)',
             'title': 'Spin Echo',
@@ -119,7 +137,7 @@ class RFOPT(blankSeq.MRIBLANKSEQ):
         result2 = {
             'widget': 'curve',
             'xData': tVector,
-            'yData': [np.abs(self.echo2), np.real(self.echo2), np.imag(self.echo2)],
+            'yData': [ste, np.real(self.echo2), np.imag(self.echo2)],
             'xLabel': 'Time (ms)',
             'yLabel': 'Signal amplitude (mV)',
             'title': 'Stimulated Echo',

@@ -16,7 +16,7 @@ class GradientEcho(blankSeq.MRIBLANKSEQ):
         self.addParameter(
             key='rfExTime', string='RF excitation time (us)', val=50.0, field='RF')
         self.addParameter(key='shimming', string='线性匀场',
-                          val=[0, 0, 666], field='OTH')
+                          val=[300, 300, 1000], field='OTH')
         self.addParameter(key='echoTime', string='TE (us)',
                           val=200, field='SEQ')
         self.addParameter(key='gradientChannel',
@@ -61,9 +61,11 @@ class GradientEcho(blankSeq.MRIBLANKSEQ):
         tim += shimmingTime
         self.rfRecPulse(tim, rfExTime, rfExAmp)
         tim += hw.blkTime + rfExTime
-        self.gradTrapAmplitude(tim, -gradientAmplitude, dephaseTime, shimming)
-        tim += dephaseTime
-        self.gradTrapAmplitude(tim, gradientAmplitude, acqTime, shimming)
+        self.gradTrap(tim, 0, dephaseTime, -gradientAmplitude,
+                      1, self.mapVals['gradientChannel'], shimming)
+        tim += dephaseTime + 1
+        self.gradTrap(tim, 0, acqTime, gradientAmplitude,
+                      1, self.mapVals['gradientChannel'], shimming)
         self.rxGateSync(tim, acqTime)
         self.endSequence(1e6)
 

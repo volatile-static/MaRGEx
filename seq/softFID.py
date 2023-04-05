@@ -20,7 +20,7 @@ class SoftFID(blankSeq.MRIBLANKSEQ):
         self.addParameter(
             key='rfLobes', string='sinc波峰个数 (0为方波)', val=0, field='RF')
         self.addParameter(key='shimming', string='线性匀场',
-                          val=[0, 0, 666], field='OTH')
+                          val=[300, 300, 1000], field='OTH')
         self.addParameter(key='repetitionTime',
                           string='TR(ms)', val=500, field='SEQ')
         self.addParameter(key='nScan', string='循环次数', val=10, field='SEQ')

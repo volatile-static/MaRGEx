@@ -29,7 +29,7 @@ class RFOPT(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='repetitionTime',
                           string='TR(ms)', val=1500, field='SEQ')
         self.addParameter(key='shimming', string='Shimming',
-                          val=[0, 0, 666], field='OTH')
+                          val=[300, 300, 1000], field='OTH')
         
 
     def sequenceInfo(self):

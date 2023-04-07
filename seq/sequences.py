@@ -27,6 +27,10 @@ import seq.localizer as localizer
 import seq.softFID as softFID
 import seq.gradientEcho as gradientEcho
 import seq.rfopt as rfopt
+import seq.snr as snr
+
+class SNR(snr.SNR):
+    def __init__(self): super(SNR, self).__init__()
 
 class SoftFID(softFID.SoftFID):
     def __init__(self): super(SoftFID, self).__init__()
@@ -108,6 +112,7 @@ defaultsequences = {
     'RFOPT': RFOPT(),
     'SoftFID': SoftFID(),
     'FID': FID(),
+    'SNR': SNR(),
     'Larmor': Larmor(),
     'Noise': Noise(),
     'RabiFlops': RabiFlops(),

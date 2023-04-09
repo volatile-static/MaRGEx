@@ -1,3 +1,4 @@
+from turtle import st
 import configs.hw_config as hw
 import seq.mriBlankSeq as blankSeq
 import numpy as np
@@ -17,15 +18,16 @@ class GradientEcho(blankSeq.MRIBLANKSEQ):
             key='rfExTime', string='RF excitation time (us)', val=50.0, field='RF')
         self.addParameter(key='shimming', string='线性匀场',
                           val=[300, 300, 1000], field='OTH')
-        self.addParameter(key='echoTime', string='TE (us)',
-                          val=200, field='SEQ')
+        self.addParameter(
+            key='slewRate', string='梯度斜率 (us/o.u.)', val=1000, field='OTH')
+        self.addParameter(
+            key='stepsRate', string='梯度步进速率 (step/o.u.)', val=200, field='OTH')
+        self.addParameter(key='dephaseTime', string='dephase time (us)',
+                          val=100, field='SEQ')
         self.addParameter(key='gradientChannel',
                           string='梯度通道 (0/1/2)', val=0, field='SEQ')
         self.addParameter(key='gradientAmplitude',
                           string='梯度幅度', val=0.1, field='SEQ')
-        # self.addParameter(key='slewRate', string='梯度斜率', val=0.1, field='SEQ')
-        # self.addParameter(key='dephaseTime', string='失相位时间', val=0.1, field='SEQ')
-        # self.addParameter(key='refocusTime', string='重聚时间', val=0.1, field='SEQ')
 
     def sequenceInfo(self):
         print("单纯的梯度回波")
@@ -34,14 +36,17 @@ class GradientEcho(blankSeq.MRIBLANKSEQ):
         return (0)
 
     def sequenceRun(self, plotSeq=0):
+        # us/o.u., slew rate for gradient rises
+        slewRate = self.mapVals['slewRate']
+        # steps/o.u., steps rate for gradient rises
+        stepsRate = self.mapVals['stepsRate']
         larmorFreq = self.mapVals['larmorFreq']  # MHz
         rfExAmp = self.mapVals['rfExAmp']
         rfExTime = self.mapVals['rfExTime']  # us
         shimming = np.array(self.mapVals['shimming'])*1e-4
         shimmingTime = 2e3  # us
-        echoTime = self.mapVals['echoTime']  # us
+        dephaseTime = self.mapVals['dephaseTime']  # us
         gradientAmplitude = self.mapVals['gradientAmplitude']
-        dephaseTime = (echoTime - rfExTime/2) / 2
         acqTime = dephaseTime * 2  # us
         nPoints = 256
         bw = nPoints / acqTime  # MHz
@@ -60,12 +65,12 @@ class GradientEcho(blankSeq.MRIBLANKSEQ):
         self.iniSequence(tim, shimming)
         tim += shimmingTime
         self.rfRecPulse(tim, rfExTime, rfExAmp)
-        tim += hw.blkTime + rfExTime
-        self.gradTrap(tim, 0, dephaseTime, -gradientAmplitude,
-                      1, self.mapVals['gradientChannel'], shimming)
-        tim += dephaseTime + 1
-        self.gradTrap(tim, 0, acqTime, gradientAmplitude,
-                      1, self.mapVals['gradientChannel'], shimming)
+        tim += hw.blkTime + rfExTime + hw.deadTime
+        self.gradTrap(tim, 10, dephaseTime, -gradientAmplitude,
+                      10, self.mapVals['gradientChannel'], shimming)
+        tim += dephaseTime + 21
+        self.gradTrap(tim, 10, acqTime, gradientAmplitude,
+                      10, self.mapVals['gradientChannel'], shimming)
         self.rxGateSync(tim, acqTime)
         self.endSequence(1e6)
 
@@ -83,7 +88,7 @@ class GradientEcho(blankSeq.MRIBLANKSEQ):
     def sequenceAnalysis(self):
         signal = self.mapVals['data']
         bw = self.mapVals['bw']*1e3  # kHz
-        nPoints = 100
+        nPoints = 256
         deadTime = hw.deadTime*1e-3  # ms
         rfExTime = self.mapVals['rfExTime']*1e-3  # ms
         tVector = np.linspace(rfExTime/2 + deadTime + 0.5/bw,

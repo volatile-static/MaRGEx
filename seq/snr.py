@@ -64,9 +64,10 @@ class SNR(blankSeq.MRIBLANKSEQ):
             # Shimming
             # shimming is turned on 20 us after experiment beginning
             self.iniSequence(20, shimming)
+            self.rfRecPulse(2000, rfExTime, rfExAmp)
 
             for scan in range(nScans):
-                tEx = 2000 + repetitionTime*scan + hw.blkTime + rfExTime / 2
+                tEx = 2000 + repetitionTime*(scan + 1) + hw.blkTime + rfExTime / 2
 
                 # Excitation pulse
                 t0 = tEx - hw.blkTime - rfExTime / 2
@@ -76,7 +77,7 @@ class SNR(blankSeq.MRIBLANKSEQ):
                 t0 = tEx + rfExTime / 2 + hw.deadTime
                 self.rxGateSync(t0, acqTime)
 
-            self.endSequence(repetitionTime*nScans)
+            self.endSequence(repetitionTime*(nScans + 1))
 
         # Initialize the experiment
         samplingPeriod = 1 / bw  # us
@@ -107,6 +108,7 @@ class SNR(blankSeq.MRIBLANKSEQ):
                 peakVals.append(np.max(np.abs(freq)))
             snr = 20*np.log10(np.mean(peakVals)/np.std(peakVals))
             print('SNR = ', snr, 'dB')
+            self.mapVals['snr'] = snr
 
             # Average data
             data = np.average(matrix, axis=0)
@@ -117,7 +119,7 @@ class SNR(blankSeq.MRIBLANKSEQ):
 
         self.expt.__del__()
 
-    def sequenceAnalysis(self, obj=''):
+    def sequenceAnalysis(self):
         # Signal and spectrum from 'fir' and decimation
         signal = self.mapVals['data']
         bw = self.mapVals['bw']*1e3  # kHz

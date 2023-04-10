@@ -22,6 +22,8 @@ class GradientEcho(blankSeq.MRIBLANKSEQ):
             key='slewRate', string='梯度斜率 (us/o.u.)', val=1000, field='OTH')
         self.addParameter(
             key='stepsRate', string='梯度步进速率 (step/o.u.)', val=200, field='OTH')
+        self.addParameter(key='gradUpdateRate', string='梯度更新速率 (o.u./s)',
+                          val=0.1, field='OTH')
         self.addParameter(key='dephaseTime', string='dephase time (us)',
                           val=100, field='SEQ')
         self.addParameter(key='gradientChannel',
@@ -53,7 +55,12 @@ class GradientEcho(blankSeq.MRIBLANKSEQ):
 
         # Initialize the experiment
         samplingPeriod = 1 / bw
-        self.expt = ex.Experiment(lo_freq=larmorFreq, rx_t=samplingPeriod)
+        self.expt = ex.Experiment(
+            lo_freq=larmorFreq, 
+            rx_t=samplingPeriod, 
+            init_gpa=True, 
+            grad_max_update_rate=self.mapVals['gradUpdateRate']
+        )
         samplingPeriod = self.expt.getSamplingRate()
         bw = 1 / samplingPeriod
         acqTime = nPoints / bw
@@ -71,7 +78,7 @@ class GradientEcho(blankSeq.MRIBLANKSEQ):
         tim += dephaseTime + 2*slewRate + 1
         self.gradTrap(tim, slewRate, acqTime, gradientAmplitude,
                       stepsRate, self.mapVals['gradientChannel'], shimming)
-        self.rxGateSync(tim, acqTime)
+        self.rxGateSync(tim, acqTime + 2*slewRate)
         self.endSequence(1e6)
 
         if not self.floDict2Exp():

@@ -49,16 +49,19 @@ class GradientEcho(blankSeq.MRIBLANKSEQ):
         shimmingTime = 2e3  # us
         dephaseTime = self.mapVals['dephaseTime']  # us
         gradientAmplitude = self.mapVals['gradientAmplitude']
-        acqTime = dephaseTime * 2  # us
+        raiseTime = slewRate * gradientAmplitude
+        refocusTime = raiseTime + 2*dephaseTime
+        acqTime = refocusTime + raiseTime*2  # us
+        gSteps = int(np.round(gradientAmplitude * stepsRate))
         nPoints = 256
         bw = nPoints / acqTime  # MHz
 
         # Initialize the experiment
         samplingPeriod = 1 / bw
         self.expt = ex.Experiment(
-            lo_freq=larmorFreq, 
-            rx_t=samplingPeriod, 
-            init_gpa=True, 
+            lo_freq=larmorFreq,
+            rx_t=samplingPeriod,
+            init_gpa=True,
             grad_max_update_rate=self.mapVals['gradUpdateRate']
         )
         samplingPeriod = self.expt.getSamplingRate()
@@ -73,12 +76,12 @@ class GradientEcho(blankSeq.MRIBLANKSEQ):
         tim += shimmingTime
         self.rfRecPulse(tim, rfExTime, rfExAmp)
         tim += hw.blkTime + rfExTime + hw.deadTime
-        self.gradTrap(tim, slewRate, dephaseTime, -gradientAmplitude,
-                      stepsRate, self.mapVals['gradientChannel'], shimming)
-        tim += dephaseTime + 2*slewRate + 1
-        self.gradTrap(tim, slewRate, acqTime, gradientAmplitude,
-                      stepsRate, self.mapVals['gradientChannel'], shimming)
-        self.rxGateSync(tim, acqTime + 2*slewRate)
+        self.gradTrap(tim, raiseTime, dephaseTime, -gradientAmplitude,
+                      gSteps, self.mapVals['gradientChannel'], shimming)
+        tim += dephaseTime + 2*raiseTime + 1
+        self.gradTrap(tim, raiseTime, refocusTime, gradientAmplitude,
+                      gSteps, self.mapVals['gradientChannel'], shimming)
+        self.rxGateSync(tim, acqTime)
         self.endSequence(1e6)
 
         if not self.floDict2Exp():
@@ -96,10 +99,7 @@ class GradientEcho(blankSeq.MRIBLANKSEQ):
         signal = self.mapVals['data']
         bw = self.mapVals['bw']*1e3  # kHz
         nPoints = 256
-        deadTime = hw.deadTime*1e-3  # ms
-        rfExTime = self.mapVals['rfExTime']*1e-3  # ms
-        tVector = np.linspace(rfExTime/2 + deadTime + 0.5/bw,
-                              rfExTime/2 + deadTime + (nPoints-0.5)/bw, nPoints)
+        tVector = np.linspace(0, nPoints/bw, nPoints)
         fVector = np.linspace(-bw/2, bw/2, nPoints)
         spectrum = np.abs(np.fft.ifftshift(
             np.fft.ifftn(np.fft.ifftshift(signal))))

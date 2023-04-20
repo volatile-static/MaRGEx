@@ -53,6 +53,9 @@ class GradientEcho(blankSeq.MRIBLANKSEQ):
         refocusTime = raiseTime + 2*dephaseTime
         acqTime = refocusTime + raiseTime*2  # us
         gSteps = int(np.round(gradientAmplitude * stepsRate))
+        if gSteps < 1:
+            print("梯度步进过小！")
+            gSteps = 1
         nPoints = 256
         bw = nPoints / acqTime  # MHz
 

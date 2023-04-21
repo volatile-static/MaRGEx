@@ -28,7 +28,7 @@ class ShimmingSweep(blankSeq.MRIBLANKSEQ):
     def __init__(self):
         super(ShimmingSweep, self).__init__()
         # Input the parameters
-        self.addParameter(key='seqName', string='ShimmingSweepInfo', val='ShimmingSweep')
+        self.addParameter(key='seqName', string='ShimmingSweepInfo', val='Shimming')
         self.addParameter(key='freqOffset', string='Larmor frequency offset (kHz)', val=0.0, field='RF')
         self.addParameter(key='rfExFA', string='Excitation flip angle (°)', val=90.0, field='RF')
         self.addParameter(key='rfReFA', string='Refocusing flip angle (°)', val=180.0, field='RF')
@@ -108,12 +108,15 @@ class ShimmingSweep(blankSeq.MRIBLANKSEQ):
 
         #  SEQUENCE  ############################################################################################
         def createSequence():
+            self.iniSequence(20, [0.0, 0.0, 0.0])
             for repeIndex in range(3 * nShimming):
                 # Set time for repetition
-                t0 = 20 + repeIndex * repetitionTime
+                t0 = 40 + repeIndex * repetitionTime
 
                 # Set shimming
-                self.iniSequence(t0, shimmingMatrix[repeIndex, :])
+                self.setGradient(t0, shimmingMatrix[repeIndex, 0], 0)
+                self.setGradient(t0, shimmingMatrix[repeIndex, 1], 1)
+                self.setGradient(t0, shimmingMatrix[repeIndex, 2], 2)
 
                 # Initialize time
                 tEx = t0 + 20e3
@@ -149,10 +152,10 @@ class ShimmingSweep(blankSeq.MRIBLANKSEQ):
         if self.floDict2Exp():
             pass
         else:
+            print("\nERROR: Experiment parameters out of hardware bounds.")
             return 0
 
         if not plotSeq:
-            print('Runing...')
             rxd, msgs = self.expt.run()
             print(msgs)
             data = sig.decimate(rxd['rx0'] * hw.adcFactor, hw.oversamplingFactor, ftype='fir', zero_phase=True)
@@ -207,7 +210,7 @@ class ShimmingSweep(blankSeq.MRIBLANKSEQ):
         shimming = [np.round(sx * 1e4, decimals=1), np.round(sy * 1e4, decimals=1), np.round(sz * 1e4, decimals=1)]
         self.mapVals['shimming0'] = shimming
 
-        self.out = [result1, shimming]
+        self.out = [result1]
         return self.out
 
 

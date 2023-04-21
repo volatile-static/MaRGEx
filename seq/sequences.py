@@ -6,6 +6,7 @@ Created on Thu June 2 2022
 """
 
 import seq.rare as rare
+import seq.rareProtocols as rareProtocols
 # import seq.haste as haste
 import seq.gre3d as gre
 # import seq.petra as petra
@@ -43,6 +44,9 @@ class RFOPT(rfopt.RFOPT):
 
 class RARE(rare.RARE):
     def __init__(self): super(RARE, self).__init__()
+
+class RAREProtocols(rareProtocols.RAREProtocols):
+    def __init__(self): super(RAREProtocols, self).__init__()
 
 class testSE(testSE.testSE):
     def __init__(self): super(testSE, self).__init__()
@@ -103,6 +107,7 @@ Definition of default sequences
 """
 defaultsequences = {
     'RARE': RARE(),
+    'RARE Protocols': RAREProtocols(),
     'GRE3D': GRE3D(),
     # 'PETRA': PETRA(),
     # 'HASTE': HASTE(),

@@ -1,5 +1,5 @@
 import numpy as np
-larmorFreq = 20.82 # MHz
+larmorFreq = 20.8 # MHz
 b1Efficiency = np.pi / (0.05 * 50) # rads / (a.u. * us)
 gFactor = [2.8, 2.8, 3.2] # (X, Y, Z) in T/m/o.u.
 slewRate = 100 # us/o.u., slew rate for gradient rises

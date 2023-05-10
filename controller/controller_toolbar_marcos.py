@@ -94,7 +94,7 @@ class MarcosController(MarcosToolBar):
                 link = False
                 while link==False:
                     try:
-                        expt = ex.Experiment(init_gpa=True, grad_max_update_rate=0.05)
+                        expt = ex.Experiment(init_gpa=True)
                         expt.add_flodict({
                             'grad_vx': (np.array([100]), np.array([0])),
                         })

@@ -14,12 +14,13 @@ maxRdPoints = 2**18 # Maximum number of points to be acquired by the red pitaya
 maxOrders = 2**14 # Maximum number of orders to be processed by the red pitaya
 cicDelayPoints = 3 # to account for signal delay from red pitaya due to cic filter
 addRdPoints = 10 # to account for wrong first points after decimation
+stepsRate = 200 # steps/o.u., steps rate for gradient rises
 arduinoPort = 'COM7'
 scanner_name = "Physio V1.01"
 fov = [20.0, 20.0, 20.0]
 dfov = [0.0, 0.0, 0.0]
-bash_path =  "gnome-terminal"  #"D:\Git\git-bash.exe"
-rp_ip_address = "192.168.1.103"#"10.14.102.162"
+bash_path =  "D:\Git\git-bash.exe" #"gnome-terminal" 
+rp_ip_address = "10.14.102.162"#"192.168.1.103"
 rp_version = "rp-122"
 
 from configs import tabletop_cfg as cfg
@@ -29,7 +30,6 @@ larmorFreq = cfg.larmorFreq # MHz
 b1Efficiency = cfg.b1Efficiency # rads / (a.u. * us)
 gFactor = cfg.gFactor # (X, Y, Z) in T/m/o.u.
 slewRate = cfg.slewRate # us/o.u., slew rate for gradient rises
-stepsRate = cfg.stepsRate # steps/o.u., steps rate for gradient rises
 blkTime = cfg.blkTime # us, blanking time of Barthel's RFPA
 gradDelay = cfg.gradDelay # Gradient amplifier delay (us)
 antenna_dict = cfg.antenna_dict

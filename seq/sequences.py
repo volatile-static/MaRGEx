@@ -29,12 +29,16 @@ import seq.softFID as softFID
 import seq.gradientEcho as gradientEcho
 import seq.rfopt as rfopt
 import seq.snr as snr
+import seq.T1SE as t1se
 
 class SNR(snr.SNR):
     def __init__(self): super(SNR, self).__init__()
 
 class SoftFID(softFID.SoftFID):
     def __init__(self): super(SoftFID, self).__init__()
+
+class T1SE(t1se.T1SE):
+    def __init__(self): super(T1SE, self).__init__()
 
 class GradientEcho(gradientEcho.GradientEcho):
     def __init__(self): super(GradientEcho, self).__init__()
@@ -106,6 +110,7 @@ class Localizer(localizer.Localizer):
 Definition of default sequences
 """
 defaultsequences = {
+    'T1SE': T1SE(),
     'RARE': RARE(),
     'RARE Protocols': RAREProtocols(),
     'GRE3D': GRE3D(),

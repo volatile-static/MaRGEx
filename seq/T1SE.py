@@ -27,8 +27,6 @@ class T1SE(blankSeq.MRIBLANKSEQ):
                           string='预读出幅值', val=0.1, field='IM')
         self.addParameter(key='shimming', string='线性匀场',
                           val=[300, 300, 1000], field='OTH')
-        self.addParameter(
-            key='slewRate', string='梯度斜率 (us/o.u.)', val=1000, field='OTH')
 
     def sequenceInfo(self):
         print(" ")
@@ -59,6 +57,11 @@ class T1SE(blankSeq.MRIBLANKSEQ):
         channelPhase = 0
         channelRead = 1
 
+        # 校验序列参数
+        if nPoints * phaseAmp > 1:
+            print("Phase encoding amplitude is too large!")
+            return
+
         # Initialize the experiment
         self.expt = ex.Experiment(lo_freq=larmorFreq, rx_t=samplingPeriod)
         samplingPeriod = self.expt.getSamplingRate()
@@ -69,16 +72,19 @@ class T1SE(blankSeq.MRIBLANKSEQ):
         for i in range(nPoints):
             t0 = tShimming + i*tRepetition
             # Excitation pulse
-            self.rfSincPulse(t0, rfExTime, rfExAmp, 0, 3)
-            self.rfSincPulse(t0 + echoSpacing/2, rfExTime, rfReAmp, 0, 3)
+            self.rfRecPulse(t0, rfExTime, rfExAmp)
+            self.rfRecPulse(t0 + echoSpacing/2, rfExTime, rfReAmp)
+            # self.rfSincPulse(t0, rfExTime, rfExAmp, 0, 3)
+            # self.rfSincPulse(t0 + echoSpacing/2, rfExTime, rfReAmp, 0, 3)
 
             # phase encoding
+            gPhAmp = (nPoints/2 - i) * phaseAmp
             self.gradTrap(
                 tStart=t0 + rfExTime + tRamp,
                 gRiseTime=tRamp,
                 gFlattopTime=tPhase,
-                gAmp=(nPoints/2 - i) * phaseAmp,
-                gSteps=hw.stepsRate * (nPoints/2 - i) * phaseAmp,
+                gAmp=gPhAmp,
+                gSteps=int(hw.stepsRate * abs(gPhAmp)) + 1,
                 gAxis=channelPhase,
                 shimming=shimming
             )
@@ -89,7 +95,7 @@ class T1SE(blankSeq.MRIBLANKSEQ):
                 gRiseTime=tRamp,
                 gFlattopTime=tPhase,
                 gAmp=preparationAmp,
-                gSteps=hw.stepsRate * preparationAmp,
+                gSteps=int(hw.stepsRate * preparationAmp),
                 gAxis=channelRead,
                 shimming=shimming
             )
@@ -98,8 +104,8 @@ class T1SE(blankSeq.MRIBLANKSEQ):
 
             self.setGradientRamp(
                 tStart=t1 - tRamp,
-                gRiseTime=tRamp,
-                nStepsGradRise=hw.stepsRate * readAmp,
+                gradRiseTime=tRamp,
+                nStepsGradRise=int(hw.stepsRate * readAmp),
                 g0=0,
                 gf=readAmp,
                 gAxes=channelRead,
@@ -107,18 +113,18 @@ class T1SE(blankSeq.MRIBLANKSEQ):
             )
             self.setGradientRamp(
                 tStart=t1 + acqTime,
-                gRiseTime=tRamp,
-                nStepsGradRise=hw.stepsRate * (phaseAmp - readAmp),
+                gradRiseTime=tRamp,
+                nStepsGradRise=int(hw.stepsRate * abs(preparationAmp - readAmp)),
                 g0=readAmp,
-                gf=phaseAmp,
+                gf=preparationAmp,
                 gAxes=channelRead,
                 shimming=shimming
             )
             self.setGradientRamp(
-                tStart=t1 + acqTime + tRamp,
-                gRiseTime=tRamp,
-                nStepsGradRise=hw.stepsRate * phaseAmp,
-                g0=phaseAmp,
+                tStart=t1 + acqTime + tRamp + tPhase,
+                gradRiseTime=tRamp,
+                nStepsGradRise=int(hw.stepsRate * preparationAmp),
+                g0=preparationAmp,
                 gf=0,
                 gAxes=channelRead,
                 shimming=shimming
@@ -137,7 +143,7 @@ class T1SE(blankSeq.MRIBLANKSEQ):
             # Decimate the signal
             dataFull = self.decimate(rxd['rx0'], nPoints)
             dataFull *= hw.adcFactor  # Here I normalize to get the result in mV
-            kSpace = np.reshape(dataFull, (nPoints, nPoints))
+            kSpace = np.reshape(dataFull, (1, nPoints, nPoints))
             img = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(kSpace)))  # 重建
 
             self.mapVals['data'] = kSpace

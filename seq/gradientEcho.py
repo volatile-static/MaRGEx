@@ -46,7 +46,7 @@ class GradientEcho(blankSeq.MRIBLANKSEQ):
         rfExAmp = self.mapVals['rfExAmp']
         rfExTime = self.mapVals['rfExTime']  # us
         shimming = np.array(self.mapVals['shimming'])*1e-4
-        shimmingTime = 2e3  # us
+        shimmingTime = 2e5  # us
         dephaseTime = self.mapVals['dephaseTime']  # us
         gradientAmplitude = self.mapVals['gradientAmplitude']
         raiseTime = slewRate * gradientAmplitude

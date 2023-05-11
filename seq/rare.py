@@ -133,8 +133,8 @@ class RARE(blankSeq.MRIBLANKSEQ):
 
         # Miscellaneous
         self.freqOffset = self.freqOffset*1e6 # MHz
-        gradRiseTime = 400e-6       # s
-        gSteps = int(gradRiseTime*1e6/5)*0+10
+        gradRiseTime = 500e-6       # s
+        gSteps = int(gradRiseTime*1e6/5)*0+16
         addRdPoints = 10             # Initial rd points to avoid artifact at the begining of rd
         randFactor = 0e-3                        # Random amplitude to add to the phase gradients
         resolution = self.fov/self.nPoints
@@ -220,34 +220,6 @@ class RARE(blankSeq.MRIBLANKSEQ):
 
         print("Readout direction:")
         print(np.reshape(result, (1, 3)))
-
-        def createSequenceDemo(phIndex=0, slIndex=0, repeIndexGlobal=0):
-            repeIndex = 0
-            acqPoints = 0
-            orders = 0
-            data = []
-            while acqPoints + self.etl * nRD <= hw.maxRdPoints and orders <= hw.maxOrders and repeIndexGlobal < nRepetitions:
-                if repeIndex == 0:
-                    acqPoints += nRD
-                    data = np.concatenate((data, np.random.randn(nRD * hw.oversamplingFactor)), axis=0)
-
-                for echoIndex in range(self.etl):
-                    if (repeIndex == 0 or repeIndex >= self.dummyPulses):
-                        acqPoints += nRD
-                        data = np.concatenate((data, np.random.randn(nRD * hw.oversamplingFactor)), axis=0)
-
-                    # Update the phase and slice gradient
-                    if repeIndex >= self.dummyPulses:
-                        if phIndex == nPH - 1:
-                            phIndex = 0
-                            slIndex += 1
-                        else:
-                            phIndex += 1
-                if repeIndex >= self.dummyPulses: repeIndexGlobal += 1  # Update the global repeIndex
-                repeIndex += 1  # Update the repeIndex after the ETL
-
-            # Return the output variables
-            return (phIndex, slIndex, repeIndexGlobal, acqPoints, data)
 
         def createSequence(phIndex=0, slIndex=0, repeIndexGlobal=0):
             repeIndex = 0
@@ -440,62 +412,61 @@ class RARE(blankSeq.MRIBLANKSEQ):
         acqPointsPerBatch = []
         while repeIndexGlobal<nRepetitions:
             nBatches += 1
+            # Create the experiment if it is not a demo
             if not self.demo:
                 self.expt = ex.Experiment(lo_freq=hw.larmorFreq+self.freqOffset, rx_t=samplingPeriod, init_gpa=init_gpa, gpa_fhdo_offset_time=(1 / 0.2 / 3.1))
                 samplingPeriod = self.expt.get_rx_ts()[0]
                 BW = 1/samplingPeriod/hw.oversamplingFactor
-                self.acqTime = self.nPoints[0]/BW        # us
-                self.mapVals['bw'] = BW
-                phIndex, slIndex, repeIndexGlobal, aa = createSequence(phIndex=phIndex,
-                                                                   slIndex=slIndex,
-                                                                   repeIndexGlobal=repeIndexGlobal)
+
+            # Run the createSequence method
+            self.acqTime = self.nPoints[0]/BW        # us
+            self.mapVals['bw'] = BW
+            phIndex, slIndex, repeIndexGlobal, aa = createSequence(phIndex=phIndex,
+                                                               slIndex=slIndex,
+                                                               repeIndexGlobal=repeIndexGlobal)
+            # Save instructions into MaRCoS if not a demo
+            if not self.demo:
                 if self.floDict2Exp(rewrite=nBatches==1):
                     pass
                 else:
-                    return 0
-                repeIndexArray = np.concatenate((repeIndexArray, np.array([repeIndexGlobal-1])), axis=0)
-                acqPointsPerBatch.append(aa)
-            else:
-                phIndex, slIndex, repeIndexGlobal, aa, dataA = createSequenceDemo(phIndex=phIndex,
-                                                                   slIndex=slIndex,
-                                                                   repeIndexGlobal=repeIndexGlobal)
-                repeIndexArray = np.concatenate((repeIndexArray, np.array([repeIndexGlobal-1])), axis=0)
-                acqPointsPerBatch.append(aa)
-                self.mapVals['bw'] = 1/samplingPeriod/hw.oversamplingFactor
+                    print("\nERROR: sequence waveforms out of hardware bounds")
+                    return False
+
+            repeIndexArray = np.concatenate((repeIndexArray, np.array([repeIndexGlobal-1])), axis=0)
+            acqPointsPerBatch.append(aa)
 
             for ii in range(self.nScans):
-                if not self.demo:
-                    if not plotSeq:
-                        print('Batch ', nBatches, ', Scan ', ii+1, ' running...')
-                        rxd, msgs = self.expt.run()
-                        rxd['rx0'] = rxd['rx0']*hw.adcFactor   # Here I normalize to get the result in mV
-                        # Get noise data
-                        noise = np.concatenate((noise, rxd['rx0'][0:nRD*hw.oversamplingFactor]), axis = 0)
-                        rxd['rx0'] = rxd['rx0'][nRD*hw.oversamplingFactor::]
-                        # Get data
-                        if self.dummyPulses>0:
-                            dummyData = np.concatenate((dummyData, rxd['rx0'][0:nRD*self.etl*hw.oversamplingFactor]), axis = 0)
-                            overData = np.concatenate((overData, rxd['rx0'][nRD*self.etl*hw.oversamplingFactor::]), axis = 0)
-                        else:
-                            overData = np.concatenate((overData, rxd['rx0']), axis = 0)
-                else:
-                    print('Batch ', nBatches, ', Scan ', ii, ' running...')
-                    data = dataA
-                    noise = np.concatenate((noise, data[0:nRD*hw.oversamplingFactor]), axis = 0)
-                    data = data[nRD*hw.oversamplingFactor::]
+                if not plotSeq:
+                    print("\nBatch %i, scan %i running..." % (nBatches, ii+1))
+                    if not self.demo:
+                        acq_points = 0
+                        while acq_points != (aa * hw.oversamplingFactor):
+                            rxd, msgs = self.expt.run()
+                            rxd['rx0'] = rxd['rx0']*hw.adcFactor   # Here I normalize to get the result in mV
+                            acq_points = np.size(rxd['rx0'])
+                            print("Acquired points = %i" % acq_points)
+                            print("Expected points = %i" % (aa * hw.oversamplingFactor))
+                        print("Batch %i, scan %i ready!")
+                    else:
+                        rxd = {}
+                        rxd['rx0'] = np.random.randn(aa*hw.oversamplingFactor)
+                        print("Batch %i, scan %i ready!" % (nBatches, ii+1))
+                    # Get noise data
+                    noise = np.concatenate((noise, rxd['rx0'][0:nRD*hw.oversamplingFactor]), axis = 0)
+                    rxd['rx0'] = rxd['rx0'][nRD*hw.oversamplingFactor::]
                     # Get data
                     if self.dummyPulses>0:
-                        dummyData = np.concatenate((dummyData, data[0:nRD*self.etl*hw.oversamplingFactor]), axis = 0)
-                        overData = np.concatenate((overData, data[nRD*self.etl*hw.oversamplingFactor::]), axis = 0)
+                        dummyData = np.concatenate((dummyData, rxd['rx0'][0:nRD*self.etl*hw.oversamplingFactor]), axis = 0)
+                        overData = np.concatenate((overData, rxd['rx0'][nRD*self.etl*hw.oversamplingFactor::]), axis = 0)
                     else:
-                        overData = np.concatenate((overData, data), axis = 0)
+                        overData = np.concatenate((overData, rxd['rx0']), axis = 0)
 
             if not self.demo: self.expt.__del__()
         del aa
 
         if not plotSeq:
             acqPointsPerBatch= (np.array(acqPointsPerBatch)-self.etl*nRD*(self.dummyPulses>0)-nRD)*self.nScans
-            print('Scans done!')
+            print('\nScans ready!')
             self.mapVals['noiseData'] = noise
             self.mapVals['overData'] = overData
 
@@ -505,7 +476,7 @@ class RARE(blankSeq.MRIBLANKSEQ):
                 dummyData = np.average(dummyData, axis=0)
                 self.mapVals['dummyData'] = dummyData
                 overData = np.reshape(overData, (-1, self.etl, nRD*hw.oversamplingFactor))
-                overData = self.fixEchoPosition(dummyData, overData)
+                #overData = self.fixEchoPosition(dummyData, overData)
                 overData = np.reshape(overData, -1)
 
             # Generate dataFull
@@ -646,17 +617,17 @@ class RARE(blankSeq.MRIBLANKSEQ):
             return([result1, result2])
         else:
             # Plot image
-            image = np.abs(self.mapVals['image3D'])
             if self.demo:
-                image = shepp_logan((nPoints[2], nPoints[1], nPoints[0]))
+                image = np.random.randn(nPoints[2], nPoints[1], nPoints[0])
             else:
                 image = np.abs(self.mapVals['image3D'])
             image = image/np.max(np.reshape(image,-1))*100
 
             # Image orientation
+            # Image orientation
             if self.axesOrientation[2] == 2:  # Sagital
                 title = "Sagittal"
-                if self.axesOrientation[0] == 0 and self.axesOrientation[1] == 1:
+                if self.axesOrientation[0] == 0 and self.axesOrientation[1] == 1:  #OK
                     image = np.flip(image, axis=2)
                     image = np.flip(image, axis=1)
                     xLabel = "A | PHASE | P"
@@ -669,8 +640,10 @@ class RARE(blankSeq.MRIBLANKSEQ):
                     yLabel = "I | PHASE | S"
             if self.axesOrientation[2] == 1: # Coronal
                 title = "Coronal"
-                if self.axesOrientation[0] == 0 and self.axesOrientation[1] == 2:
+                if self.axesOrientation[0] == 0 and self.axesOrientation[1] == 2: #OK
                     image = np.flip(image, axis=2)
+                    image = np.flip(image, axis=1)
+                    image = np.flip(image, axis=0)
                     xLabel = "L | PHASE | R"
                     yLabel = "I | READOUT | S"
                 else:
@@ -684,11 +657,13 @@ class RARE(blankSeq.MRIBLANKSEQ):
                     image = np.flip(image, axis=2)
                     xLabel = "L | PHASE | R"
                     yLabel = "P | READOUT | A"
-                else:
+                else:  #OK
                     image = np.transpose(image, (0, 2, 1))
                     image = np.flip(image, axis=2)
+                    image = np.flip(image, axis=1)
                     xLabel = "L | READOUT | R"
                     yLabel = "P | PHASE | A"
+
 
             result1 = {}
             result1['widget'] = 'image'
@@ -716,8 +691,39 @@ class RARE(blankSeq.MRIBLANKSEQ):
             self.mapVals['dfov'] = [0.0, 0.0, 0.0]
             hw.dfov = [0.0, 0.0, 0.0]
 
-            # Add parameters to meta_data dictionary
+            # DICOM TAGS
+            # Image
+            imageDICOM = np.transpose(image, (0, 2, 1))
+            # If it is a 3d image
+            if len(imageDICOM.shape) > 2:
+                # Obtener dimensiones
+                slices, rows, columns = imageDICOM.shape
+                self.meta_data["Columns"] = columns
+                self.meta_data["Rows"] = rows
+                self.meta_data["NumberOfSlices"] = slices
+                self.meta_data["NumberOfFrames"] = slices
+            # if it is a 2d image
+            else:
+                # Obtener dimensiones
+                rows, columns = imageDICOM.shape
+                self.meta_data["Columns"] = columns
+                self.meta_data["Rows"] = rows
+                self.meta_data["NumberOfSlices"] = 1
+                self.meta_data["NumberOfFrames"] = 1
+            imgAbs = np.abs(imageDICOM)
+            imgFullAbs = np.abs(imageDICOM) * (2 ** 15 - 1) / np.amax(np.abs(imageDICOM))
+            x2 = np.amax(np.abs(imageDICOM))
+            imgFullInt = np.int16(np.abs(imgFullAbs))
+            imgFullInt = np.reshape(imgFullInt, (slices, rows, columns))
+            arr = np.zeros((slices, rows, columns), dtype=np.int16)
+            arr = imgFullInt
+            self.meta_data["PixelData"] = arr.tobytes()
+            self.meta_data["WindowWidth"] = 26373
+            self.meta_data["WindowCenter"] = 13194
+            # Sequence parameters
             self.meta_data["RepetitionTime"] = self.mapVals['repetitionTime']
+            self.meta_data["EchoTime"] = self.mapVals['echoSpacing']
+            self.meta_data["EchoTrainLength"] = self.mapVals['etl']
 
             # Add results into the output attribute (result1 must be the image to save in dicom)
             self.output = [result1, result2]

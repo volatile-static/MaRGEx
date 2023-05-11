@@ -25,6 +25,7 @@ import pyqtgraph as pg
 import time
 from phantominator import shepp_logan
 
+
 #*********************************************************************************
 #*********************************************************************************
 #*********************************************************************************
@@ -72,6 +73,14 @@ class RAREProtocols(blankSeq.MRIBLANKSEQ):
         print("Sweep modes: 0:k20, 1:02k, 2:k2k")
         print("Axes: 0:x, 1:y, 2:z")
 
+    # def floDict2Exp(self, rewrite=True):
+    #     result = self.floDict2Exp(rewrite)
+    #
+    #     if result:
+    #         jsalkfjlsajla
+    #     else:
+    #         return False
+
     def sequenceTime(self):
         nScans = self.mapVals['nScans']
         nPoints = np.array(self.mapVals['nPoints'])
@@ -101,43 +110,6 @@ class RAREProtocols(blankSeq.MRIBLANKSEQ):
         # Create the inputs automatically as a property of the class
         for key in self.mapKeys:
             setattr(self, key, self.mapVals[key])
-
-        # Create the inputs automatically. For some reason it only works if there is a few code later...
-        # for key in self.mapKeys:
-        #     locals()[key] = self.mapVals[key]
-        #     if not key in locals():
-        #         print('Error')
-        #         locals()[key] = self.mapVals[key]
-
-        # Create the inputs manually, pufff
-        # seqName = self.mapVals['seqName']
-        # nScans = self.mapVals['nScans']
-        # larmorFreq = self.mapVals['larmorFreq']# MHz
-        # rfExFA = self.mapVals['rfExFA']/180*np.pi # rads
-        # rfReFA = self.mapVals['rfReFA']/180*np.pi # rads
-        # rfExTime = self.mapVals['rfExTime'] # us
-        # rfReTime = self.mapVals['rfReTime'] # us
-        # echoSpacing = self.mapVals['echoSpacing'] # ms
-        # preExTime = self.mapVals['preExTime'] # ms
-        # inversionTime = self.mapVals['inversionTime'] # ms
-        # repetitionTime = self.mapVals['repetitionTime'] # ms
-        # fov = np.array(self.mapVals['fov']) # cm
-        # dfov = np.array(self.mapVals['dfov']) # mm
-        # nPoints = np.array(self.mapVals['nPoints'])
-        # etl = self.mapVals['etl']
-        # acqTime = self.mapVals['acqTime'] # ms
-        # axes = self.mapVals['axes']
-        # axesEnable = self.mapVals['axesEnable']
-        # sweepMode = self.mapVals['sweepMode']
-        # rdGradTime = self.mapVals['rdGradTime'] # ms
-        # rdDephTime = self.mapVals['rdDephTime'] # ms
-        # phGradTime = self.mapVals['phGradTime'] # ms
-        # rdPreemphasis = self.mapVals['rdPreemphasis']
-        # drfPhase = self.mapVals['drfPhase'] # degrees
-        # dummyPulses = self.mapVals['dummyPulses']
-        # shimming = np.array(self.mapVals['shimming']) # *1e4
-        # parFourierFraction = self.mapVals['parFourierFraction']
-        # freqCal = self.mapVals['freqCal']
 
         # Conversion of variables to non-multiplied units
         self.freqOffset = self.freqOffset*1e3
@@ -414,6 +386,7 @@ class RAREProtocols(blankSeq.MRIBLANKSEQ):
         phIndex = 0
         slIndex = 0
         acqPointsPerBatch = []
+
         while repeIndexGlobal<nRepetitions:
             nBatches += 1
             if not demo:
@@ -426,6 +399,18 @@ class RAREProtocols(blankSeq.MRIBLANKSEQ):
                                                                    slIndex=slIndex,
                                                                    repeIndexGlobal=repeIndexGlobal,
                                                                    rewrite=nBatches==1)
+                expected_points = aa*hw.oversamplingFactor
+                print("\nAcquired Points Theo. %i" % expected_points)
+                # if self.floDict2Exp(rewrite=nBatches==1):
+                #     pass
+                # else:
+                #     return 0
+                if self.floDict2Exp(rewrite=nBatches==1):
+                    print("\nSequence waveforms loaded successfully")
+                    pass
+                else:
+                    print("\nERROR: sequence waveforms out of hardware bounds")
+                    return False
                 repeIndexArray = np.concatenate((repeIndexArray, np.array([repeIndexGlobal-1])), axis=0)
                 acqPointsPerBatch.append(aa)
             else:
@@ -441,8 +426,15 @@ class RAREProtocols(blankSeq.MRIBLANKSEQ):
                 if not demo:
                     if not plotSeq:
                         print('Batch ', nBatches, ', Scan ', ii+1, ' runing...')
-                        rxd, msgs = self.expt.run()
-                        rxd['rx0'] = rxd['rx0']*13.788   # Here I normalize to get the result in mV
+                        check = True
+                        while check:
+                            rxd, msgs = self.expt.run()
+                            rxd['rx0'] = rxd['rx0']*13.788   # Here I normalize to get the result in mV
+                            print("\nAcquired Points in RP %i" % np.size(rxd['rx0']))
+                            if np.size(rxd['rx0']) == expected_points:
+                                check = False
+                            else:
+                                print("\nRepeating current batch")
                         # Get noise data
                         noise = np.concatenate((noise, rxd['rx0'][0:nRD*hw.oversamplingFactor]), axis = 0)
                         rxd['rx0'] = rxd['rx0'][nRD*hw.oversamplingFactor::]
@@ -570,127 +562,7 @@ class RAREProtocols(blankSeq.MRIBLANKSEQ):
             self.mapVals['sampledCartesian'] = self.mapVals['sampled']  # To sweep
             data = np.reshape(data, (self.nPoints[2], self.nPoints[1], self.nPoints[0]))
 
-
-    # def sequenceAnalysis(self, obj=''):
-    #     self.saveRawData()
-    #     nPoints = self.mapVals['nPoints']
-    #     axesEnable = self.mapVals['axesEnable']
-    #
-    #     # Get axes in strings
-    #     axes = self.mapVals['axesOrientation']
-    #     axesDict = {'x':0, 'y':1, 'z':2}
-    #     axesKeys = list(axesDict.keys())
-    #     axesVals = list(axesDict.values())
-    #     axesStr = ['','','']
-    #     n = 0
-    #     for val in axes:
-    #         index = axesVals.index(val)
-    #         axesStr[n] = axesKeys[index]
-    #         n += 1
-    #
-    #     # Create widget to introduce the figures
-    #     win = pg.LayoutWidget()
-    #     win.resize(300, 1000)
-    #
-    #     if (axesEnable[1] == 0 and axesEnable[2] == 0):
-    #         bw = self.mapVals['bw']*1e-3 # kHz
-    #         acqTime = self.mapVals['acqTime'] # ms
-    #         tVector = np.linspace(-acqTime/2, acqTime/2, nPoints[0])
-    #         sVector = self.mapVals['sampled'][:, 3]
-    #         fVector = np.linspace(-bw/2, bw/2, nPoints[0])
-    #         iVector = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(sVector)))
-    #
-    #         # Plots to show into the GUI
-    #         f_plotview = SpectrumPlot(fVector, [np.abs(iVector)], ['Spectrum magnitude'],
-    #                                   "Frequency (kHz)", "Amplitude (a.u.)",
-    #                                   "Spectrum")
-    #         t_plotview = SpectrumPlot(tVector, [np.abs(sVector), np.real(sVector), np.imag(sVector)],
-    #                                   ['Magnitude', 'Real', 'Imaginary'],
-    #                                   'Time (ms)', "Signal amplitude (mV)",
-    #                                   "Signal")
-    #
-    #         # Introduce the images into the layout
-    #         win.addWidget(t_plotview, row=0, col=0)
-    #         win.addWidget(f_plotview, row=0, col=1)
-    #
-    #         if obj=="Standalone":
-    #             pg.exec()
-    #         return([win])
-    #     else:
-    #         # Plot image
-    #         image = np.abs(self.mapVals['image3D'])
-    #         image = image/np.max(np.reshape(image,-1))*100
-    #
-    #         # Image orientation
-    #         if self.axesOrientation[2] == 2:  # Sagital
-    #             title = "Sagital"
-    #             if self.axesOrientation[0] == 0 and self.axesOrientation[1] == 1:
-    #                 image = np.flip(image, axis=2)
-    #                 image = np.flip(image, axis=1)
-    #                 xLabel = "A | PHASE | P"
-    #                 yLabel = "I | READOUT | S"
-    #             else:
-    #                 image = np.transpose(image, (0, 2, 1))
-    #                 image = np.flip(image, axis=2)
-    #                 image = np.flip(image, axis=1)
-    #                 xLabel = "A | READOUT | P"
-    #                 yLabel = "I | PHASE | S"
-    #         if self.axesOrientation[2] == 1: # Coronal
-    #             title = "Coronal"
-    #             if self.axesOrientation[0] == 0 and self.axesOrientation[1] == 2:
-    #                 image = np.flip(image, axis=2)
-    #                 xLabel = "L | PHASE | R"
-    #                 yLabel = "I | READOUT | S"
-    #             else:
-    #                 image = np.transpose(image, (0, 2, 1))
-    #                 image = np.flip(image, axis=2)
-    #                 xLabel = "L | READOUT | R"
-    #                 yLabel = "I | PHASE | S"
-    #         if self.axesOrientation[2] == 0:  # Transversal
-    #             title = "Transversal"
-    #             if self.axesOrientation[0] == 1 and self.axesOrientation[1] == 2:
-    #                 image = np.flip(image, axis=2)
-    #                 xLabel = "L | PHASE | R"
-    #                 yLabel = "P | READOUT | A"
-    #             else:
-    #                 image = np.transpose(image, (0, 2, 1))
-    #                 image = np.flip(image, axis=2)
-    #                 xLabel = "L | READOUT | R"
-    #                 yLabel = "P | PHASE | A"
-    #
-    #         image = Spectrum3DPlot(image,
-    #                                title=title,
-    #                                xLabel=xLabel,
-    #                                yLabel=yLabel)
-    #         imageWidget = image.getImageWidget()
-    #
-    #         # image = Spectrum3DPlot(np.angle(self.mapVals['kSpace3D']), title="k-Space - Phase ")
-    #         # image = Spectrum3DPlot(np.unwrap(np.angle(self.mapVals['kSpace3D'])),title="k-Space - Phase ")
-    #         # imageWidget = image.getImageWidget()
-    #
-    #
-    #
-    #         try:
-    #             kSpace = Spectrum3DPlot(np.log10(np.abs(self.mapVals['kSpace3D'])),
-    #                                     title='k-Space')
-    #             # kSpace = Spectrum3DPlot(log10(np.abs(self.mapVals['kSpace3D'])),
-    #             #                         title='k-Space',
-    #             #                         xLabel="k%s"%axesStr[1],
-    #             #                         yLabel="k%s"%axesStr[0])
-    #         except:
-    #             kSpace = Spectrum3DPlot(np.abs(self.mapVals['kSpace3D']),
-    #                                     title='k-Space',
-    #                                     xLabel="k%s" % axesStr[1],
-    #                                     yLabel="k%s" % axesStr[0])
-    #         kSpaceWidget = kSpace.getImageWidget()
-    #
-    #         win.addWidget(imageWidget, row=0, col=0)
-    #         win.addWidget(kSpaceWidget, row=0, col=1)
-    #         # win.addWidget(image2Widget, row=0, col=1)
-    #
-    #         if obj=="Standalone":
-    #             pg.exec()
-    #         return([win])
+        return True
 
     def sequenceAnalysis(self, obj=''):
         nPoints = self.mapVals['nPoints']
@@ -752,7 +624,7 @@ class RAREProtocols(blankSeq.MRIBLANKSEQ):
             # Image orientation
             if self.axesOrientation[2] == 2:  # Sagital
                 title = "Sagittal"
-                if self.axesOrientation[0] == 0 and self.axesOrientation[1] == 1:
+                if self.axesOrientation[0] == 0 and self.axesOrientation[1] == 1:  #OK
                     image = np.flip(image, axis=2)
                     image = np.flip(image, axis=1)
                     xLabel = "A | PHASE | P"
@@ -765,8 +637,10 @@ class RAREProtocols(blankSeq.MRIBLANKSEQ):
                     yLabel = "I | PHASE | S"
             if self.axesOrientation[2] == 1: # Coronal
                 title = "Coronal"
-                if self.axesOrientation[0] == 0 and self.axesOrientation[1] == 2:
+                if self.axesOrientation[0] == 0 and self.axesOrientation[1] == 2: #OK
                     image = np.flip(image, axis=2)
+                    image = np.flip(image, axis=1)
+                    image = np.flip(image, axis=0)
                     xLabel = "L | PHASE | R"
                     yLabel = "I | READOUT | S"
                 else:
@@ -780,9 +654,10 @@ class RAREProtocols(blankSeq.MRIBLANKSEQ):
                     image = np.flip(image, axis=2)
                     xLabel = "L | PHASE | R"
                     yLabel = "P | READOUT | A"
-                else:
+                else:  #OK
                     image = np.transpose(image, (0, 2, 1))
                     image = np.flip(image, axis=2)
+                    image = np.flip(image, axis=1)
                     xLabel = "L | READOUT | R"
                     yLabel = "P | PHASE | A"
 
@@ -812,19 +687,49 @@ class RAREProtocols(blankSeq.MRIBLANKSEQ):
             self.mapVals['dfov'] = [0.0, 0.0, 0.0]
             hw.dfov = [0.0, 0.0, 0.0]
 
-            # Add parameters to meta_data dictionary
+            # DICOM TAGS
+            # Image
+            imageDICOM = np.transpose(image, (0,2,1))
+            # If it is a 3d image
+            if len(imageDICOM.shape) > 2:
+                # Obtener dimensiones
+                slices, rows, columns = imageDICOM.shape
+                self.meta_data["Columns"] = columns
+                self.meta_data["Rows"] = rows
+                self.meta_data["NumberOfSlices"] = slices
+                self.meta_data["NumberOfFrames"] = slices
+            # if it is a 2d image
+            else:
+                # Obtener dimensiones
+                rows, columns = imageDICOM.shape
+                self.meta_data["Columns"] = columns
+                self.meta_data["Rows"] = rows
+                self.meta_data["NumberOfSlices"] = 1
+                self.meta_data["NumberOfFrames"] = 1
+            imgAbs = np.abs(imageDICOM)
+            imgFullAbs = np.abs(imageDICOM) * (2 ** 15 - 1) / np.amax(np.abs(imageDICOM))
+            x2 = np.amax(np.abs(imageDICOM))
+            imgFullInt = np.int16(np.abs(imgFullAbs))
+            imgFullInt = np.reshape(imgFullInt, (slices, rows, columns))
+            arr = np.zeros((slices, rows, columns), dtype=np.int16)
+            arr = imgFullInt
+            self.meta_data["PixelData"] = arr.tobytes()
+            self.meta_data["WindowWidth"] = 26373
+            self.meta_data["WindowCenter"] = 13194
+            # Sequence parameters
             self.meta_data["RepetitionTime"] = self.mapVals['repetitionTime']
 
-            # Add results into the output attribute (result1 must be the image to save in dicom)
-            self.output = [result1, result2]
 
-            # Save results
-            self.saveRawData()
+        # Add results into the output attribute (result1 must be the image to save in dicom)
+        self.output = [result1, result2]
 
-            return self.output
+        # Save results
+        self.saveRawData()
+
+        return self.output
 
 
 if __name__=="__main__":
-    seq = RARE()
+    seq = RAREProtocols()
     seq.sequenceRun()
     seq.sequenceAnalysis(obj='Standalone')

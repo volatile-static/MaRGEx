@@ -51,6 +51,11 @@ class Plot3DController(Plot3DWidget):
 
     def menuClicked(self):
         # Now the menu button is the FOV button
+
+        # Provisionally stop signals from roi changes
+        for widget in self.main.figures_layout.findChildren(Plot3DController):
+            widget.roiFOV.blockSignals(True)
+
         if self.ui.menuBtn.isChecked():
             # Get the corresponding axes from the image
             x_axis = 0
@@ -66,20 +71,20 @@ class Plot3DController(Plot3DWidget):
                 z_axis = 2
             elif self.title == "Coronal":
                 a = -1
-                d = [-1, 1]
+                d = [1, 1]
                 x_axis = 2
                 y_axis = 0
                 z_axis = 1
             elif self.title == "Transversal":
                 a = 1
-                d = [-1, 1]
+                d = [1, 1]
                 x_axis = 2
                 y_axis = 1
                 z_axis = 0
 
             # Get image fov and resolution
             current_output = self.main.history_list.current_output
-            self.seq_name = self.main.sequence_list.getCurrentSequence()
+            self.seq_name = self.main.history_list.inputs[current_output][1][0]
             img_fov = self.main.history_list.fovs[current_output][-1]
             if self.seq_name in defaultsequences.keys():
                 roi_fov = np.array(defaultsequences[self.seq_name].mapVals['fov']) * 1e-2  # m
@@ -108,6 +113,10 @@ class Plot3DController(Plot3DWidget):
         else:
             self.roiFOV.hide()
 
+        # Reset signals from roi changes
+        for widget in self.main.figures_layout.findChildren(Plot3DController):
+            widget.roiFOV.blockSignals(False)
+
     def roiFOVChanged(self):
         # Get the corresponding axes from the image
         x_axis = 0
@@ -123,13 +132,13 @@ class Plot3DController(Plot3DWidget):
             z_axis = 2
         elif self.title == "Coronal":
             a = -1
-            d = [1, -1]
+            d = [-1, -1]
             x_axis = 2
             y_axis = 0
             z_axis = 1
         elif self.title == "Transversal":
             a = 1
-            d = [1, -1]
+            d = [-1, -1]
             x_axis = 2
             y_axis = 1
             z_axis = 0
@@ -183,9 +192,7 @@ class Plot3DController(Plot3DWidget):
             if id(widget) == id(self):
                 pass
             else:
-                widget.roiFOV.blockSignals(True)
                 widget.menuClicked()
-                widget.roiFOV.blockSignals(False)
                 if widget.title == 'Sagittal' or widget.title == 'Coronal' or widget.title == 'Transversal':
                     if roi_angle != 0:
                         print("\nWarning: it is not recommended to angle the figure with multiplot.")

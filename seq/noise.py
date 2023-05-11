@@ -70,7 +70,7 @@ class Noise(blankSeq.MRIBLANKSEQ):
             fVector = np.linspace(-self.bw / 2, self.bw / 2, num=self.nPoints) * 1e3  # kHz
             self.dataTime = [tVector, data]
             self.dataSpec = [fVector, spectrum]
-            time.sleep(0.5)
+            #time.sleep(0.5)
         else:
             self.bw = self.bw * hw.oversamplingFactor
             samplingPeriod = 1 / self.bw
@@ -102,6 +102,8 @@ class Noise(blankSeq.MRIBLANKSEQ):
                 self.dataTime = [tVector, data]
                 self.dataSpec = [fVector, spectrum]
             self.expt.__del__()
+
+        return True
 
     def sequenceAnalysis(self, obj=''):
         noiserms = np.std(self.dataTime[1])

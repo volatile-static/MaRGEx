@@ -218,39 +218,51 @@ class HistoryListController(HistoryListWidget):
 
                         # Get the sequence to run
                         seq_name = self.inputs[key][1][0]
-                        # sequence = copy.deepcopy(defaultsequences[seq_name])
                         sequence = defaultsequences[seq_name]
+
                         # Modify input parameters of the sequence
                         n = 0
-                        input_list = list(sequence.mapVals.keys())
-                        for keyParam in input_list:
+                        for keyParam in sequence.mapKeys:
                             sequence.mapVals[keyParam] = self.inputs[key][1][n]
                             n += 1
+
                         # Run the sequence
-                        output = self.runSequenceInlist(sequence=sequence, key=key)
-                        # Add item to the history list
-                        file_name = sequence.mapVals['fileName']
-                        self.item(element).setText(key + " | " + file_name)
-                        # Save results into the history
-                        self.outputs[key] = output
-                        self.inputs[key][2] = False
-                        # Delete outputs from the sequence
-                        sequence.resetMapVals()
-                        print(key + " Done!")
+                        key_index = keys.index(key)
+                        raw_data_name = self.item(key_index).text().split('|')[1].split(' ')[1]
+                        output = self.runSequenceInlist(sequence=sequence, key=key, raw_data_name=raw_data_name)
+                        if output == 0:
+                            # del self.inputs[key]
+                            # del keys[key_index]
+                            # self.takeItem(key_index)
+                            # print("\n%s deleted!" % key)
+                            self.inputs[key][2] = False
+                            print("\n"+key+" sequence finished abruptly with error.")
+                        else:
+                            # Add item to the history list
+                            file_name = sequence.mapVals['fileName']
+                            date = ".".join(file_name.split('.')[1::])
+                            self.item(key_index).setText(self.item(key_index).text() + "." + date)
+                            # Save results into the history
+                            self.outputs[key] = output
+                            self.inputs[key][2] = False
+                            # Delete outputs from the sequence
+                            sequence.resetMapVals()
+                            print("\n" + key + " ready!")
                     else:
                         # Enable acquire button
                         if self.main.toolbar_marcos.action_server.isChecked():
                             self.main.toolbar_sequences.action_acquire.setEnabled(True)
-                    element += 1
+                    time.sleep(0.1)
             else:
                 pass
             time.sleep(1)
 
         return 0
 
-    def runSequenceInlist(self, sequence=None, key=None):
+    def runSequenceInlist(self, sequence=None, key=None, raw_data_name=""):
         # Save sequence list into the current sequence, just in case you need to do sweep
         sequence.sequenceList = defaultsequences
+        sequence.raw_data_name = raw_data_name
 
         # Save input parameters
         sequence.saveParams()

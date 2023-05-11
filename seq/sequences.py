@@ -26,7 +26,8 @@ import seq.sweepImage as sweep
 # import seq.autoTuning as autoTuning
 import seq.localizer as localizer
 import seq.softFID as softFID
-import seq.gradientEcho as gradientEcho
+import seq.gre2d as gre2d
+import seq.gre1d as gre1d
 import seq.rfopt as rfopt
 import seq.snr as snr
 import seq.T1SE as t1se
@@ -40,8 +41,11 @@ class SoftFID(softFID.SoftFID):
 class T1SE(t1se.T1SE):
     def __init__(self): super(T1SE, self).__init__()
 
-class GradientEcho(gradientEcho.GradientEcho):
-    def __init__(self): super(GradientEcho, self).__init__()
+class GRE2D(gre2d.GRE2D):
+    def __init__(self): super(GRE2D, self).__init__()
+
+class GRE1D(gre1d.GRE1D):
+    def __init__(self): super(GRE1D, self).__init__()
 
 class RFOPT(rfopt.RFOPT):
     def __init__(self): super(RFOPT, self).__init__()
@@ -114,11 +118,12 @@ defaultsequences = {
     'RARE': RARE(),
     'RARE Protocols': RAREProtocols(),
     'GRE3D': GRE3D(),
+    'GRE2D': GRE2D(),
+    'GRE1D': GRE1D(),
     # 'PETRA': PETRA(),
     # 'HASTE': HASTE(),
     # 'AutoTuning': AutoTuning(),
     # 'SliceSelection': SliceSelection(),
-    'GradientEcho': GradientEcho(),
     'RFOPT': RFOPT(),
     'SoftFID': SoftFID(),
     'FID': FID(),

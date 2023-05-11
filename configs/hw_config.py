@@ -8,6 +8,8 @@
 # Y axis: 40 mT/m/o.u., 0.8 mT/m/A, 4.0 mT/m/V
 # Z axis: 35 mT/m/o.u., 0.7 mT/m/A, 3.5 mT/m/V
 
+grad_rise_time = 400e-6 # s, time for gradient ramps
+grad_steps = 16 # steps to gradient ramps
 gammaB = 42.56e6 # Hz/T, Gyromagnetic ratio
 oversamplingFactor = 6 # Rx oversampling
 maxRdPoints = 2**18 # Maximum number of points to be acquired by the red pitaya

@@ -5,9 +5,9 @@ import numpy as np
 import controller.experiment_gui as ex
 
 
-class GradientEcho(blankSeq.MRIBLANKSEQ):
+class GRE2D(blankSeq.MRIBLANKSEQ):
     def __init__(self):
-        super(GradientEcho, self).__init__()
+        super(GRE2D, self).__init__()
         # Input the parameters
         self.addParameter(key='seqName', string='梯度回波', val='GradientEcho')
         self.addParameter(

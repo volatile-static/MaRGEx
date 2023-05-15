@@ -1,141 +1,163 @@
-from turtle import st
-import configs.hw_config as hw
-import seq.mriBlankSeq as blankSeq
 import numpy as np
+
+import configs.hw_config as hw
 import controller.experiment_gui as ex
+import seq.mriBlankSeq as blankSeq
 
 
 class GRE2D(blankSeq.MRIBLANKSEQ):
     def __init__(self):
         super(GRE2D, self).__init__()
         # Input the parameters
-        self.addParameter(key='seqName', string='梯度回波', val='GradientEcho')
-        self.addParameter(
-            key='larmorFreq', string='Larmor frequency (MHz)', val=hw.larmorFreq, field='RF')
-        self.addParameter(
-            key='rfExAmp', string='RF excitation amplitude (a.u.)', val=0.07, field='RF')
-        self.addParameter(
-            key='rfExTime', string='RF excitation time (us)', val=50.0, field='RF')
-        self.addParameter(key='shimming', string='线性匀场',
-                          val=[300, 300, 1000], field='OTH')
-        self.addParameter(
-            key='slewRate', string='梯度斜率 (us/o.u.)', val=1000, field='OTH')
-        self.addParameter(
-            key='stepsRate', string='梯度步进速率 (step/o.u.)', val=200, field='OTH')
-        self.addParameter(key='gradUpdateRate', string='梯度更新速率 (o.u./s)',
-                          val=0.1, field='OTH')
-        self.addParameter(key='dephaseTime', string='dephase time (us)',
-                          val=100, field='SEQ')
-        self.addParameter(key='gradientChannel',
-                          string='梯度通道 (0/1/2)', val=0, field='SEQ')
-        self.addParameter(key='gradientAmplitude',
-                          string='梯度幅度', val=0.1, field='SEQ')
+        self.addParameter(key='seqName', string='梯度回波成像', val='GRE2D')
+
+        self.addParameter(key='nPoints', string='像素点数', val=256, field='IM')
+        self.addParameter(key='nScans', string='平均次数', val=1, field='IM')
+        self.addParameter(key='phaseAmp', string='相位编码步进 (o.u.)', val=0.001, field='IM')
+        self.addParameter(key='readAmp', string='读出梯度幅值 (o.u.)', val=0.1, field='IM')
+
+        self.addParameter(key='flipAngle', string='翻转角（°）', val=30, field='RF')
+        self.addParameter(key='larmorFreq', string='中心频率 (MHz)', val=hw.larmorFreq, field='RF')
+        self.addParameter(key='bwCalib', string='调频带宽 (MHz)', val=0.02, field='RF')
+
+        self.addParameter(key='echoSpacing', string='TE (ms)', val=1.2, field='SEQ')
+        self.addParameter(key='repetitionTime', string='TR (ms)', val=100, field='SEQ')
+        self.addParameter(key='spoilDelay', string='扰相延迟 (μs)', val=100, field='SEQ')
+        self.addParameter(key='readPadding', string='读出边距 (μs)', val=10, field='SEQ')
+
+        self.addParameter(key='shimming', string='线性匀场 [x,y,z]', val=[700, 700, 1900], field='OTH')
+        self.addParameter(key='axes', string='[读出，相位，选层]', val=[0, 1, 2], field='OTH')
+        self.addParameter(key='raiseTime', string='梯度上升时间 (μs)', val=300, field='OTH')
+        self.addParameter(key='raiseSteps', string='梯度上升步数', val=20, field='OTH')
 
     def sequenceInfo(self):
-        print("单纯的梯度回波")
+        print("============ 梯度回波成像 ============")
 
     def sequenceTime(self):
-        return (0)
+        flip_angle = self.mapVals['flipAngle'] / 90 * np.pi  # 角度转弧度
+        rf_amp = round(flip_angle / (50 * hw.b1Efficiency), 6)
+        if rf_amp != self.mapVals.get('rfExAmp', 0.05):
+            self.mapVals['rfExAmp'] = rf_amp
+            print("激发功率：", self.mapVals['rfExAmp'], " (a.u.)")
+        return self.mapVals['repetitionTime'] * self.mapVals['nPoints'] * self.mapVals['nScans'] / 6e4
 
-    def sequenceRun(self, plotSeq=0):
-        # us/o.u., slew rate for gradient rises
-        slewRate = self.mapVals['slewRate']
-        # steps/o.u., steps rate for gradient rises
-        stepsRate = self.mapVals['stepsRate']
-        larmorFreq = self.mapVals['larmorFreq']  # MHz
-        rfExAmp = self.mapVals['rfExAmp']
-        rfExTime = self.mapVals['rfExTime']  # us
-        shimming = np.array(self.mapVals['shimming'])*1e-4
-        shimmingTime = 2e5  # us
-        dephaseTime = self.mapVals['dephaseTime']  # us
-        gradientAmplitude = self.mapVals['gradientAmplitude']
-        raiseTime = slewRate * gradientAmplitude
-        refocusTime = raiseTime + 2*dephaseTime
-        acqTime = refocusTime + raiseTime*2  # us
-        gSteps = int(np.round(gradientAmplitude * stepsRate))
-        if gSteps < 1:
-            print("梯度步进过小！")
-            gSteps = 1
-        nPoints = 256
-        bw = nPoints / acqTime  # MHz
+    def sequenceRun(self, plot_seq=0):
+        print('扫描用时：', self.sequenceTime())
 
-        # Initialize the experiment
-        samplingPeriod = 1 / bw
-        self.expt = ex.Experiment(
-            lo_freq=larmorFreq,
-            rx_t=samplingPeriod,
-            init_gpa=True,
-            grad_max_update_rate=self.mapVals['gradUpdateRate']
-        )
-        samplingPeriod = self.expt.getSamplingRate()
-        bw = 1 / samplingPeriod
-        acqTime = nPoints / bw
-        self.mapVals['acqTime'] = acqTime*1e-3
-        self.mapVals['bw'] = bw
+        num_points = self.mapVals['nPoints']
+        num_scans = self.mapVals['nScans']
+        phase_amp = self.mapVals['phaseAmp']
+        read_amp = self.mapVals['readAmp']
+        t_e = self.mapVals['echoSpacing'] * 1e3
+        t_r = self.mapVals['repetitionTime'] * 1e3
+        spoil_delay = self.mapVals['spoilDelay']
+        read_padding = self.mapVals['readPadding']
 
-        # Create the sequence
+        shimming = np.array(self.mapVals['shimming']) * 1e-4
+        axes = self.mapVals['axes']
+        rise_time = self.mapVals['raiseTime']
+        g_steps = self.mapVals['raiseSteps']
+        rf_amp = self.mapVals['rfExAmp']
+        bw_calib = self.mapVals['bwCalib']
+
+        rf_time = self.mapVals['rfExTime'] = 50
+        if bw_calib > 0:
+            hw.larmorFreq = self.freqCalibration(bw_calib, 0.001)
+            print("频率校准：", hw.larmorFreq, " (MHz)")
+            hw.larmorFreq = self.freqCalibration(bw_calib)
+            self.mapVals['larmorFreq'] = hw.larmorFreq
+
+        dephase_refocus_time = t_e - hw.deadTime - rf_time/2 - 3*rise_time
+        refocus_time = dephase_refocus_time + rise_time
+        dephase_time = refocus_time/2 - rise_time
+        print('dephase: ', dephase_time, 'refocus: ', refocus_time)
+
+        # acq_time = refocus_time - 2*read_padding
+        # sampling_period = acq_time / num_points
+        self.expt = ex.Experiment(lo_freq=self.mapVals['larmorFreq'])
+        self.mapVals['samplingRate'] = self.expt.getSamplingRate()
+        acq_time = self.mapVals['samplingRate'] * num_points
+        print('采样率：', 1e3/self.mapVals['samplingRate'], ' (kHz)')
+        print('采样时长：', acq_time, ' (μs)')
+
+        phase_amp_max = phase_amp * (num_points - 1) / 2
+        if phase_amp_max > 1:
+            print('相位编码过大！')
+            return 0
+
+        def gradient(t, flat, amp, channel):
+            self.gradTrap(
+                tStart=t,
+                gRiseTime=rise_time,
+                gFlattopTime=flat,
+                gAmp=amp,
+                gSteps=g_steps,
+                gAxis=channel,
+                shimming=shimming
+            )
+
+        # --------------------- ↓序列开始↓ ---------------------
         tim = 20
         self.iniSequence(tim, shimming)
-        tim += shimmingTime
-        self.rfRecPulse(tim, rfExTime, rfExAmp)
-        tim += hw.blkTime + rfExTime + hw.deadTime
-        self.gradTrap(tim, raiseTime, dephaseTime, -gradientAmplitude,
-                      gSteps, self.mapVals['gradientChannel'], shimming)
-        tim += dephaseTime + 2*raiseTime + 1
-        self.gradTrap(tim, raiseTime, refocusTime, gradientAmplitude,
-                      gSteps, self.mapVals['gradientChannel'], shimming)
-        self.rxGateSync(tim, acqTime)
-        self.endSequence(1e6)
+
+        for i in range(num_scans):
+            for j in range(num_points):
+                tim = 1e5 + (i * num_points + j) * t_r
+                self.rfRecPulse(tim, rf_time, rf_amp)
+
+                tim += hw.blkTime + rf_time + hw.deadTime
+                gradient(tim, dephase_time, -read_amp, axes[0])
+                gradient(tim, dephase_time, (num_points/2 - j) * phase_amp, axes[1])
+
+                tim += dephase_time + 2 * rise_time + 1
+                gradient(tim, refocus_time, read_amp, axes[0])
+
+                tim += rise_time + read_padding
+                self.rxGateSync(tim, acq_time)
+
+                tim += refocus_time - read_padding + rise_time + spoil_delay
+                for k in range(3):
+                    gradient(tim, dephase_time, phase_amp_max, axes[k])
+
+        self.endSequence(num_points * num_scans * t_r + 2e6)
+        # --------------------- ↑序列结束↑ ---------------------
 
         if not self.floDict2Exp():
             return 0
 
-        if not plotSeq:
+        if not plot_seq:
             rxd, msg = self.expt.run()
             print(msg)
-            dataFull = self.decimate(rxd['rx0'], 1)
-            self.mapVals['data'] = dataFull
+            self.mapVals['dataOver'] = rxd['rx0'] * hw.adcFactor
 
         self.expt.__del__()
 
     def sequenceAnalysis(self):
-        signal = self.mapVals['data']
-        bw = self.mapVals['bw']*1e3  # kHz
-        nPoints = 256
-        tVector = np.linspace(0, nPoints/bw, nPoints)
-        fVector = np.linspace(-bw/2, bw/2, nPoints)
-        spectrum = np.abs(np.fft.ifftshift(
-            np.fft.ifftn(np.fft.ifftshift(signal))))
-        fitedLarmor = self.mapVals['larmorFreq'] + \
-            fVector[np.argmax(np.abs(spectrum))] * 1e-3
-        print('Larmor frequency: %1.5f MHz' % fitedLarmor)
-        self.mapVals['signalVStime'] = [tVector, signal]
-        self.mapVals['spectrum'] = [fVector, spectrum]
+        num_points = self.mapVals['nPoints']
+        data_over = np.reshape(self.mapVals['dataOver'], (self.mapVals['nScans'], -1))
+        data_average = np.average(data_over, axis=0)
+        data_full = self.decimate(data_average, num_points)
+        ksp = self.mapVals['ksp'] = np.reshape(data_full, (num_points, num_points))
+        self.mapVals['img'] = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(ksp)))  # 重建
         self.saveRawData()
 
-        # Add time signal to the layout
-        result1 = {
-            'widget': 'curve',
-            'xData': tVector,
-            'yData': [np.abs(signal), np.real(signal), np.imag(signal)],
-            'xLabel': 'Time (ms)',
-            'yLabel': 'Signal amplitude (mV)',
-            'title': 'Signal vs time',
-            'legend': ['abs', 'real', 'imag'],
+        img = np.reshape(self.mapVals['img'], (1, num_points, num_points))
+        ksp = np.reshape(ksp, (1, num_points, num_points))
+
+        return [{
+            'widget': 'image',
+            'data': np.abs(img),
+            'xLabel': 'xLabel',
+            'yLabel': 'yLabel',
+            'title': '幅值图',
             'row': 0,
             'col': 0
-        }
-
-        # Add frequency spectrum to the layout
-        result2 = {
-            'widget': 'curve',
-            'xData': fVector,
-            'yData': [spectrum],
-            'xLabel': 'Frequency (kHz)',
-            'yLabel': 'Spectrum amplitude (a.u.)',
-            'title': 'Spectrum',
-            'legend': [''],
-            'row': 1,
-            'col': 0
-        }
-        return [result1, result2]
+        }, {
+            'widget': 'image',
+            'data': np.log10(np.abs(ksp)),
+            'xLabel': 'Kx',
+            'yLabel': 'Ky',
+            'title': 'k-Space',
+            'row': 0,
+            'col': 1
+        }]

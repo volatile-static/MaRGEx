@@ -702,7 +702,7 @@ class MRIBLANKSEQ:
             if (dt<=0).any():
                 print("\nSequence timing error")
                 return False
-            if (item[1]>1).any() or (item[1]<-1).any():
+            if (item[1]>1).any() or (item[1] < -1).any():
                 print("\nSequence amplitude error")
                 return False
 
@@ -857,6 +857,7 @@ class MRIBLANKSEQ:
         bw = 1 / samplingPeriod / ov
         acqTime = nPoints / bw  # us
         self.createFreqCalSequence(bw, acqTime)
+        self.floDict2Exp()
         rxd, msgs = self.expt.run()
         dataFreqCal = sig.decimate(rxd['rx0'] * 13.788, ov, ftype='fir', zero_phase=True)
         dataFreqCal = dataFreqCal[addRdPoints:nPoints + addRdPoints]

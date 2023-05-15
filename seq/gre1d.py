@@ -1,15 +1,15 @@
-from turtle import st
-import configs.hw_config as hw
-import seq.mriBlankSeq as blankSeq
 import numpy as np
+
+import configs.hw_config as hw
 import controller.experiment_gui as ex
+import seq.mriBlankSeq as blankSeq
 
 
 class GRE1D(blankSeq.MRIBLANKSEQ):
     def __init__(self):
         super(GRE1D, self).__init__()
         # Input the parameters
-        self.addParameter(key='seqName', string='梯度回波', val='GradientEcho')
+        self.addParameter(key='seqName', string='梯度回波', val='GRE1D')
         self.addParameter(
             key='larmorFreq', string='Larmor frequency (MHz)', val=hw.larmorFreq, field='RF')
         self.addParameter(
@@ -35,7 +35,7 @@ class GRE1D(blankSeq.MRIBLANKSEQ):
         print("单纯的梯度回波")
 
     def sequenceTime(self):
-        return (0)
+        return 0
 
     def sequenceRun(self, plotSeq=0):
         # us/o.u., slew rate for gradient rises

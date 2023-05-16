@@ -25,7 +25,7 @@ class GRE2D(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='spoilDelay', string='扰相延迟 (μs)', val=100, field='SEQ')
         self.addParameter(key='readPadding', string='读出边距 (μs)', val=10, field='SEQ')
 
-        self.addParameter(key='shimming', string='线性匀场 [x,y,z]', val=[700, 700, 1900], field='OTH')
+        self.addParameter(key='shimming', string='线性匀场 [x,y,z]', val=[350.0, 370.0, 1030.0], field='OTH')
         self.addParameter(key='axes', string='[读出，相位，选层]', val=[0, 1, 2], field='OTH')
         self.addParameter(key='raiseTime', string='梯度上升时间 (μs)', val=300, field='OTH')
         self.addParameter(key='raiseSteps', string='梯度上升步数', val=20, field='OTH')
@@ -36,7 +36,9 @@ class GRE2D(blankSeq.MRIBLANKSEQ):
     def sequenceTime(self):
         flip_angle = self.mapVals['flipAngle'] / 90 * np.pi  # 角度转弧度
         rf_amp = round(flip_angle / (50 * hw.b1Efficiency), 6)
-        if rf_amp != self.mapVals.get('rfExAmp', 0.05):
+        if self.mapVals.get('rfExAmp') is None:
+            self.mapVals['rfExAmp'] = 0.05
+        if rf_amp != self.mapVals['rfExAmp']:
             self.mapVals['rfExAmp'] = rf_amp
             print("激发功率：", self.mapVals['rfExAmp'], " (a.u.)")
         return self.mapVals['repetitionTime'] * self.mapVals['nPoints'] * self.mapVals['nScans'] / 6e4
@@ -72,9 +74,9 @@ class GRE2D(blankSeq.MRIBLANKSEQ):
         dephase_time = refocus_time/2 - rise_time
         print('dephase: ', dephase_time, 'refocus: ', refocus_time)
 
-        # acq_time = refocus_time - 2*read_padding
-        # sampling_period = acq_time / num_points
-        self.expt = ex.Experiment(lo_freq=self.mapVals['larmorFreq'])
+        acq_time = refocus_time - 2*read_padding + 2000
+        sampling_period = acq_time / num_points / hw.oversamplingFactor
+        self.expt = ex.Experiment(lo_freq=self.mapVals['larmorFreq'], rx_t=sampling_period)
         self.mapVals['samplingRate'] = self.expt.getSamplingRate()
         acq_time = self.mapVals['samplingRate'] * num_points
         print('采样率：', 1e3/self.mapVals['samplingRate'], ' (kHz)')
@@ -135,6 +137,7 @@ class GRE2D(blankSeq.MRIBLANKSEQ):
     def sequenceAnalysis(self):
         num_points = self.mapVals['nPoints']
         data_over = np.reshape(self.mapVals['dataOver'], (self.mapVals['nScans'], -1))
+        print('数据维度：', data_over.shape)
         data_average = np.average(data_over, axis=0)
         data_full = self.decimate(data_average, num_points)
         ksp = self.mapVals['ksp'] = np.reshape(data_full, (num_points, num_points))
@@ -147,16 +150,16 @@ class GRE2D(blankSeq.MRIBLANKSEQ):
         return [{
             'widget': 'image',
             'data': np.abs(img),
-            'xLabel': 'xLabel',
-            'yLabel': 'yLabel',
+            'xLabel': '相位编码',
+            'yLabel': '频率编码',
             'title': '幅值图',
             'row': 0,
             'col': 0
         }, {
             'widget': 'image',
             'data': np.log10(np.abs(ksp)),
-            'xLabel': 'Kx',
-            'yLabel': 'Ky',
+            'xLabel': 'mV',
+            'yLabel': 'ms',
             'title': 'k-Space',
             'row': 0,
             'col': 1

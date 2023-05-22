@@ -26,6 +26,7 @@ import seq.sweepImage as sweep
 # import seq.autoTuning as autoTuning
 import seq.localizer as localizer
 import seq.softFID as softFID
+import seq.gre2denoise as gre2denoise
 import seq.gre2d as gre2d
 import seq.gre1d as gre1d
 import seq.rfopt as rfopt
@@ -40,6 +41,9 @@ class SoftFID(softFID.SoftFID):
 
 class T1SE(t1se.T1SE):
     def __init__(self): super(T1SE, self).__init__()
+
+class GRE2Denoise(gre2denoise.GRE2Denoise):
+    def __init__(self): super(GRE2Denoise, self).__init__()
 
 class GRE2D(gre2d.GRE2D):
     def __init__(self): super(GRE2D, self).__init__()
@@ -117,6 +121,7 @@ defaultsequences = {
     'T1SE': T1SE(),
     'RARE': RARE(),
     'RARE Protocols': RAREProtocols(),
+    'GRE2Denoise': GRE2Denoise(),
     'GRE3D': GRE3D(),
     'GRE2D': GRE2D(),
     'GRE1D': GRE1D(),

@@ -92,7 +92,7 @@ class FID(blankSeq.MRIBLANKSEQ):
 
         # Initialize the experiment
         samplingPeriod = 1 / bw  # us
-        self.expt = ex.Experiment(lo_freq=larmorFreq, rx_t=samplingPeriod, init_gpa=init_gpa, gpa_fhdo_offset_time=(1 / 0.2 / 3.1))
+        self.expt = ex.Experiment(lo_freq=larmorFreq, rx_t=samplingPeriod, init_gpa=init_gpa,grad_max_update_rate=0.2, gpa_fhdo_offset_time=(1 / 0.2 / 3.1))
         samplingPeriod = self.expt.getSamplingRate()
         bw = 1 / samplingPeriod
         acqTime = nPoints / bw  # us

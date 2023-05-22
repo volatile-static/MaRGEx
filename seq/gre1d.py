@@ -64,7 +64,7 @@ class GRE1D(blankSeq.MRIBLANKSEQ):
         self.expt = ex.Experiment(
             lo_freq=larmorFreq,
             rx_t=samplingPeriod,
-            init_gpa=True,
+            init_gpa=False,
             grad_max_update_rate=self.mapVals['gradUpdateRate']
         )
         samplingPeriod = self.expt.getSamplingRate()

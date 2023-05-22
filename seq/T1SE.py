@@ -84,7 +84,7 @@ class T1SE(blankSeq.MRIBLANKSEQ):
                 gRiseTime=tRamp,
                 gFlattopTime=tPhase,
                 gAmp=gPhAmp,
-                gSteps=int(hw.stepsRate * abs(gPhAmp)) + 1,
+                gSteps=hw.grad_steps,
                 gAxis=channelPhase,
                 shimming=shimming
             )
@@ -95,7 +95,7 @@ class T1SE(blankSeq.MRIBLANKSEQ):
                 gRiseTime=tRamp,
                 gFlattopTime=tPhase,
                 gAmp=preparationAmp,
-                gSteps=int(hw.stepsRate * preparationAmp),
+                gSteps=hw.grad_steps,
                 gAxis=channelRead,
                 shimming=shimming
             )
@@ -105,7 +105,7 @@ class T1SE(blankSeq.MRIBLANKSEQ):
             self.setGradientRamp(
                 tStart=t1 - tRamp,
                 gradRiseTime=tRamp,
-                nStepsGradRise=int(hw.stepsRate * readAmp),
+                nStepsGradRise=hw.grad_steps,
                 g0=0,
                 gf=readAmp,
                 gAxes=channelRead,
@@ -114,7 +114,7 @@ class T1SE(blankSeq.MRIBLANKSEQ):
             self.setGradientRamp(
                 tStart=t1 + acqTime,
                 gradRiseTime=tRamp,
-                nStepsGradRise=int(hw.stepsRate * abs(preparationAmp - readAmp)),
+                nStepsGradRise=hw.grad_steps,
                 g0=readAmp,
                 gf=preparationAmp,
                 gAxes=channelRead,
@@ -123,7 +123,7 @@ class T1SE(blankSeq.MRIBLANKSEQ):
             self.setGradientRamp(
                 tStart=t1 + acqTime + tRamp + tPhase,
                 gradRiseTime=tRamp,
-                nStepsGradRise=int(hw.stepsRate * preparationAmp),
+                nStepsGradRise=hw.grad_steps,
                 g0=preparationAmp,
                 gf=0,
                 gAxes=channelRead,

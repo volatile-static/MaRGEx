@@ -57,6 +57,7 @@ class GRE3D(blankSeq.MRIBLANKSEQ):
         return(nPoints[1]*nPoints[2]*repetitionTime*1e-3*nScans/60)  # minutes, scanTime
 
     def sequenceRun(self, plotSeq):
+        demo = False
         init_gpa=False, # Starts the gpa
         nScans = self.mapVals['nScans'] # NEX
         larmorFreq = self.mapVals['larmorFreq'] # MHz, Larmor frequency

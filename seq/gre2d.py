@@ -74,7 +74,7 @@ class GRE2D(blankSeq.MRIBLANKSEQ):
         dephase_time = refocus_time/2 - rise_time
         print('dephase: ', dephase_time, 'refocus: ', refocus_time)
 
-        acq_time = refocus_time - 2*read_padding + 2000
+        acq_time = refocus_time - 2*read_padding + 6000
         sampling_period = acq_time / num_points / hw.oversamplingFactor
         self.expt = ex.Experiment(lo_freq=self.mapVals['larmorFreq'], rx_t=sampling_period)
         self.mapVals['samplingRate'] = self.expt.getSamplingRate()

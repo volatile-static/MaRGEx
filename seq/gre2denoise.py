@@ -74,7 +74,7 @@ class GRE2Denoise(blankSeq.MRIBLANKSEQ):
         dephase_time = refocus_time/2 - rise_time
         print('dephase: ', dephase_time, 'refocus: ', refocus_time)
 
-        acq_time = refocus_time - 2*read_padding + 2000
+        acq_time = refocus_time - 2*read_padding + 6000
         sampling_period = acq_time / num_points / hw.oversamplingFactor
         self.expt = ex.Experiment(lo_freq=self.mapVals['larmorFreq'], rx_t=sampling_period)
         self.mapVals['samplingRate'] = self.expt.getSamplingRate()
@@ -160,9 +160,13 @@ class GRE2Denoise(blankSeq.MRIBLANKSEQ):
         img = np.reshape(self.mapVals['img'], (1, num_points, num_points))
         ksp = np.reshape(ksp, (1, num_points, num_points))
 
+        # tmp0 = np.reshape(data_over0, (1, num_points, -1))
+        # tmp1 = np.reshape(data_over1, (1, num_points, -1))
+
         return [{
             'widget': 'image',
             'data': np.abs(img),
+            # 'data': np.log10(np.abs(tmp0)),
             'xLabel': '相位编码',
             'yLabel': '频率编码',
             'title': '幅值图',
@@ -171,6 +175,7 @@ class GRE2Denoise(blankSeq.MRIBLANKSEQ):
         }, {
             'widget': 'image',
             'data': np.log10(np.abs(ksp)),
+            # 'data': np.log10(np.abs(tmp1)),
             'xLabel': 'mV',
             'yLabel': 'ms',
             'title': 'k-Space',

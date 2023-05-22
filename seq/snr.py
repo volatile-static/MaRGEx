@@ -76,6 +76,7 @@ class SNR(blankSeq.MRIBLANKSEQ):
                 # Rx gate
                 t0 = tEx + rfExTime / 2 + hw.deadTime
                 self.rxGateSync(t0, acqTime)
+                self.rxGateSync(t0, acqTime, 1)
 
             self.endSequence(repetitionTime*(nScans + 1))
 
@@ -98,30 +99,31 @@ class SNR(blankSeq.MRIBLANKSEQ):
             rxd, msgs = self.expt.run()
 
             # Decimate the signal
-            dataFull = self.decimate(rxd['rx0'], nScans)
-
-            matrix = np.reshape(dataFull, (nScans, -1))
+            dataFull0 = self.decimate(rxd['rx0'], nScans)
+            dataFull1 = self.decimate(rxd['rx1'], nScans)
+            matrix1 = np.reshape(dataFull1, (nScans, -1))
+            matrix0 = np.reshape(dataFull0, (nScans, -1))
             peakVals = []
             for ii in range(nScans):
                 freq = np.fft.fftshift(np.fft.fft(
-                    np.fft.fftshift(matrix[ii]), n=matrix[ii].size))
+                    np.fft.fftshift(matrix0[ii]), n=matrix0[ii].size))
                 peakVals.append(np.max(np.abs(freq)))
             snr = 20*np.log10(np.mean(peakVals)/np.std(peakVals))
             print('SNR = ', snr, 'dB')
             self.mapVals['snr'] = snr
 
             # Average data
-            data = np.average(matrix, axis=0)
-            self.mapVals['data'] = data
-
-            # Save data to sweep plot (single point)
-            self.mapVals['sampledPoint'] = data[0]
+            data0 = np.average(matrix0, axis=0)
+            data1 = np.average(matrix1, axis=0)
+            self.mapVals['data0'] = data0
+            self.mapVals['data1'] = data1
 
         self.expt.__del__()
 
     def sequenceAnalysis(self):
         # Signal and spectrum from 'fir' and decimation
-        signal = self.mapVals['data']
+        signal0 = self.mapVals['data0']
+        signal1 = self.mapVals['data1']
         bw = self.mapVals['bw']*1e3  # kHz
         nPoints = self.mapVals['nPoints']
         deadTime = hw.deadTime*1e-3  # ms
@@ -129,37 +131,39 @@ class SNR(blankSeq.MRIBLANKSEQ):
         tVector = np.linspace(rfExTime/2 + deadTime + 0.5/bw,
                               rfExTime/2 + deadTime + (nPoints-0.5)/bw, nPoints)
         fVector = np.linspace(-bw/2, bw/2, nPoints)
-        spectrum = np.abs(np.fft.ifftshift(
-            np.fft.ifftn(np.fft.ifftshift(signal))))
+        spectrum0 = np.abs(np.fft.ifftshift(
+            np.fft.ifftn(np.fft.ifftshift(signal0))))
+        spectrum1 = np.abs(np.fft.ifftshift(
+            np.fft.ifftn(np.fft.ifftshift(signal0))))
         fitedLarmor = self.mapVals['larmorFreq'] + \
-            fVector[np.argmax(np.abs(spectrum))] * 1e-3
+            fVector[np.argmax(np.abs(spectrum0))] * 1e-3
 
         # Get the central frequency
         print('Larmor frequency: %1.5f MHz' % fitedLarmor)
-        self.mapVals['signalVStime'] = [tVector, signal]
-        self.mapVals['spectrum'] = [fVector, spectrum]
+        self.mapVals['signalVStime'] = [tVector, signal0]
+        self.mapVals['spectrum'] = [fVector, spectrum0]
 
         self.saveRawData()
 
         # Add time signal to the layout
         result1 = {'widget': 'curve',
                    'xData': tVector,
-                   'yData': [np.abs(signal), np.real(signal), np.imag(signal)],
+                   'yData': [np.abs(signal0), np.abs(signal1)],
                    'xLabel': 'Time (ms)',
                    'yLabel': 'Signal amplitude (mV)',
                    'title': 'Signal vs time',
-                   'legend': ['abs', 'real', 'imag'],
+                   'legend': ['abs0', 'abs1'],
                    'row': 0,
                    'col': 0}
 
         # Add frequency spectrum to the layout
         result2 = {'widget': 'curve',
                    'xData': fVector,
-                   'yData': [spectrum],
+                   'yData': [spectrum0, spectrum1],
                    'xLabel': 'Frequency (kHz)',
                    'yLabel': 'Spectrum amplitude (a.u.)',
                    'title': 'Spectrum',
-                   'legend': [''],
+                   'legend': ['0', '1'],
                    'row': 1,
                    'col': 0}
 

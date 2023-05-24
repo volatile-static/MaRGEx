@@ -142,31 +142,34 @@ class GRE2Denoise(blankSeq.MRIBLANKSEQ):
 
     def sequenceAnalysis(self):
         num_points = self.mapVals['nPoints']
-        data_over0 = np.reshape(self.mapVals['dataOver0'], (self.mapVals['nScans'], -1))
-        data_over1 = np.reshape(self.mapVals['dataOver1'], (self.mapVals['nScans'], -1))
-        data_average0 = np.average(data_over0, axis=0)
-        data_average1 = np.average(data_over1, axis=0)
-        data_full0 = np.reshape(self.decimate(data_average0, num_points), (num_points, -1))
-        data_full1 = np.reshape(self.decimate(data_average1, num_points), (num_points, -1))
+        num_scans = self.mapVals['nScans']
+        data_matrix = [self.mapVals['dataOver0'], self.mapVals['dataOver1']]
 
-        ksp = self.mapVals['ksp'] = data_full0[:, :num_points]
+        for ch in range(2):
+            data_over = np.reshape(data_matrix[ch], (num_scans, -1))
+            data_former = data_latter = np.zeros((num_points, num_points, num_scans)) * 0j
+            for i in range(num_scans):
+                data_scan = np.reshape(data_over[i], (num_points, -1))
+                data_raw_former = data_raw_latter = np.zeros((num_points, num_points)) * 0j
+                for j in range(num_points):
+                    data_line = data_scan[j]
+                    n = int(np.size(data_line) / 2)
+                    data_raw_former[j] = self.decimate(data_line[:n], 1)
+                    data_raw_latter[j] = self.decimate(data_line[n:], 1)
+                data_former[:, :, i] = data_raw_former
+                data_latter[:, :, i] = data_raw_latter
+            self.mapVals['data_former%i' % ch] = data_former
+            self.mapVals['data_latter%i' % ch] = data_latter
+
+        ksp = np.average(self.mapVals['data_former0'], 2)
         self.mapVals['img'] = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(ksp)))  # 重建
-
-        self.mapVals['noise1'] = data_full0[:, num_points:]
-        self.mapVals['noise2'] = data_full1[:, :num_points]
-        self.mapVals['noise3'] = data_full1[:, num_points:]
         self.saveRawData()
 
         img = np.reshape(self.mapVals['img'], (1, num_points, num_points))
         ksp = np.reshape(ksp, (1, num_points, num_points))
-
-        # tmp0 = np.reshape(data_over0, (1, num_points, -1))
-        # tmp1 = np.reshape(data_over1, (1, num_points, -1))
-
         return [{
             'widget': 'image',
-            'data': np.abs(img),
-            # 'data': np.log10(np.abs(tmp0)),
+            'data': np.log(np.abs(img)),
             'xLabel': '相位编码',
             'yLabel': '频率编码',
             'title': '幅值图',
@@ -174,8 +177,7 @@ class GRE2Denoise(blankSeq.MRIBLANKSEQ):
             'col': 0
         }, {
             'widget': 'image',
-            'data': np.log10(np.abs(ksp)),
-            # 'data': np.log10(np.abs(tmp1)),
+            'data': np.log(np.abs(ksp)),
             'xLabel': 'mV',
             'yLabel': 'ms',
             'title': 'k-Space',

@@ -147,21 +147,21 @@ class GRE2Denoise(blankSeq.MRIBLANKSEQ):
 
         for ch in range(2):
             data_over = np.reshape(data_matrix[ch], (num_scans, -1))
-            data_former = data_latter = np.zeros((num_points, num_points, num_scans)) * 0j
+            data_former = np.zeros((num_points, num_points, num_scans)) * 0j
+            data_latter = np.zeros((num_points, num_points, num_scans)) * 0j
             for i in range(num_scans):
                 data_scan = np.reshape(data_over[i], (num_points, -1))
-                data_raw_former = data_raw_latter = np.zeros((num_points, num_points)) * 0j
-                for j in range(num_points):
-                    data_line = data_scan[j]
-                    n = int(np.size(data_line) / 2)
-                    data_raw_former[j] = self.decimate(data_line[:n], 1)
-                    data_raw_latter[j] = self.decimate(data_line[n:], 1)
-                data_former[:, :, i] = data_raw_former
-                data_latter[:, :, i] = data_raw_latter
-            self.mapVals['data_former%i' % ch] = data_former
-            self.mapVals['data_latter%i' % ch] = data_latter
+                n = int(np.size(data_scan[0]) / 2)
+                data_over_former = data_scan[:, :n]
+                data_over_latter = data_scan[:, n:]
+                data_full_former = self.decimate(np.array(data_over_former), num_points)
+                data_full_latter = self.decimate(np.array(data_over_latter), num_points)
+                data_former[:, :, i] = data_full_former.reshape((num_points, num_points))
+                data_latter[:, :, i] = data_full_latter.reshape((num_points, num_points))
+            self.mapVals['dataFormer%i' % ch] = data_former
+            self.mapVals['dataLatter%i' % ch] = data_latter
 
-        ksp = np.average(self.mapVals['data_former0'], 2)
+        ksp = np.average(self.mapVals['dataFormer0'], 2)
         self.mapVals['img'] = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(ksp)))  # 重建
         self.saveRawData()
 

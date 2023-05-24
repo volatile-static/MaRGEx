@@ -130,6 +130,27 @@ class T1SE(blankSeq.MRIBLANKSEQ):
                 shimming=shimming
             )
 
+            # spoil
+            # t2 = t1 + acqTime + tRamp*2 + tPhase + 100
+            # self.gradTrap(
+            #     tStart=t2,
+            #     gRiseTime=tRamp,
+            #     gFlattopTime=tPhase,
+            #     gAmp=phaseAmp * nPoints / 2,
+            #     gSteps=hw.grad_steps,
+            #     gAxis=2,
+            #     shimming=shimming
+            # )
+            # self.gradTrap(
+            #     tStart=t2,
+            #     gRiseTime=tRamp,
+            #     gFlattopTime=tPhase,
+            #     gAmp=phaseAmp * nPoints / 2,
+            #     gSteps=hw.grad_steps,
+            #     gAxis=channelPhase,
+            #     shimming=shimming
+            # )
+
         self.endSequence(nPoints*tRepetition)
         # --------------------- ↑序列结束↑ ---------------------
 

@@ -37,8 +37,8 @@ class RAREProtocols(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='seqName', string='RAREInfo', val='RARE Protocols')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
         self.addParameter(key='freqOffset', string='Larmor frequency offset (kHz)', val=0.0, field='RF')
-        self.addParameter(key='rfExFA', string='Exitation flip angle (º)', val=90, field='RF')
-        self.addParameter(key='rfReFA', string='Refocusing flip angle (º)', val=180, field='RF')
+        self.addParameter(key='rfExFA', string='Exitation flip angle ()', val=90, field='RF')
+        self.addParameter(key='rfReFA', string='Refocusing flip angle ()', val=180, field='RF')
         self.addParameter(key='rfExTime', string='RF excitation time (us)', val=35.0, field='RF')
         self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=70.0, field='RF')
         self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=20.0, field='SEQ')
@@ -457,7 +457,6 @@ class RAREProtocols(blankSeq.MRIBLANKSEQ):
                         overData = np.concatenate((overData, data), axis = 0)
 
             if not demo: self.expt.__del__()
-        del aa
 
         if not plotSeq:
             acqPointsPerBatch= (np.array(acqPointsPerBatch)-self.etl*nRD*(self.dummyPulses>0)-nRD)*self.nScans

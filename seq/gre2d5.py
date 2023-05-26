@@ -1,4 +1,5 @@
 import numpy as np
+from numpy.random import uniform
 
 import configs.hw_config as hw
 import controller.experiment_gui as ex
@@ -14,7 +15,7 @@ class GRE2D5(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='nPoints', string='像素点数', val=256, field='IM')
         self.addParameter(key='nScans', string='平均次数', val=1, field='IM')
         self.addParameter(key='phaseAmp', string='相位编码步进 (o.u.)', val=0.00001, field='IM')
-        self.addParameter(key='readAmp', string='读出梯度幅值 (o.u.)', val=0.001, field='IM')
+        self.addParameter(key='phaseTime', string='相位编码时长 (o.u.)', val=0.001, field='IM')
         self.addParameter(key='sliceAmp', string='选层梯度幅值 (o.u.)', val=0.001, field='IM')
 
         self.addParameter(key='rfExAmp', string='激发功率 (a.u.)', val=0.08, field='RF')
@@ -45,6 +46,7 @@ class GRE2D5(blankSeq.MRIBLANKSEQ):
         num_points = self.mapVals['nPoints']
         num_scans = self.mapVals['nScans']
         phase_amp = self.mapVals['phaseAmp']
+        phase_time = self.mapVals['phaseTime']
         read_amp = self.mapVals['readAmp']
         slice_amp = self.mapVals['sliceAmp']
         t_e = self.mapVals['echoSpacing'] * 1e3
@@ -61,12 +63,13 @@ class GRE2D5(blankSeq.MRIBLANKSEQ):
         rf_time = self.mapVals['rfExTime']
         bw_calib = self.mapVals['bwCalib']
 
-        if bw_calib > 0:
-            hw.larmorFreq = self.freqCalibration(bw_calib, 0.001)
-            print("频率校准：", hw.larmorFreq, " (MHz)")
-            hw.larmorFreq = self.freqCalibration(bw_calib)
-            self.mapVals['larmorFreq'] = hw.larmorFreq
+        # if bw_calib > 0:
+        #     hw.larmorFreq = self.freqCalibration(bw_calib, 0.001)
+        #     print("频率校准：", hw.larmorFreq, " (MHz)")
+        #     hw.larmorFreq = self.freqCalibration(bw_calib)
+        #     self.mapVals['larmorFreq'] = hw.larmorFreq
 
+        refocus_time_2 = t_e - hw.deadTime - rf_time/2 - 3*rise_time - phase_time
         dephase_refocus_time = t_e - hw.deadTime - rf_time/2 - 3*rise_time
         refocus_time = dephase_refocus_time + rise_time
         dephase_time = refocus_time/2 - rise_time
@@ -118,8 +121,7 @@ class GRE2D5(blankSeq.MRIBLANKSEQ):
                 self.rxGateSync(tim, acq_time)
 
                 tim += refocus_time - read_padding + rise_time + spoil_delay
-                for k in range(3):
-                    gradient(tim, dephase_time, phase_amp_max, axes[k])
+                gradient(tim, dephase_time, phase_amp_max*uniform(-1, 1), axes[2])
 
         self.endSequence(num_points * num_scans * t_r + 2e6)
         # --------------------- ↑序列结束↑ ---------------------

@@ -35,7 +35,7 @@ class GRE2D(blankSeq.MRIBLANKSEQ):
 
     def sequenceTime(self):
         flip_angle = self.mapVals['flipAngle'] / 90 * np.pi  # 角度转弧度
-        rf_amp = round(flip_angle / (100 * hw.b1Efficiency), 6)
+        rf_amp = round(flip_angle / (50 * hw.b1Efficiency), 6)
         if self.mapVals.get('rfExAmp') is None:
             self.mapVals['rfExAmp'] = 0.05
         if rf_amp != self.mapVals['rfExAmp']:
@@ -62,7 +62,7 @@ class GRE2D(blankSeq.MRIBLANKSEQ):
         rf_amp = self.mapVals['rfExAmp']
         bw_calib = self.mapVals['bwCalib']
 
-        rf_time = self.mapVals['rfExTime'] = 100
+        rf_time = self.mapVals['rfExTime'] = 50
         if bw_calib > 0:
             hw.larmorFreq = self.freqCalibration(bw_calib, 0.001)
             print("频率校准：", hw.larmorFreq, " (MHz)")
@@ -118,8 +118,8 @@ class GRE2D(blankSeq.MRIBLANKSEQ):
                 self.rxGateSync(tim, acq_time)
 
                 tim += refocus_time - read_padding + rise_time + spoil_delay
-                for k in range(3):
-                    gradient(tim, dephase_time, phase_amp_max, axes[k])
+                gradient(tim, dephase_time, phase_amp_max, axes[2])
+                gradient(tim, dephase_time, -(num_points/2 - j) * phase_amp, axes[1])
 
         self.endSequence(num_points * num_scans * t_r + 2e6)
         # --------------------- ↑序列结束↑ ---------------------

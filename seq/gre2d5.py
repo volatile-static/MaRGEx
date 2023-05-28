@@ -26,7 +26,7 @@ class GRE2D5(blankSeq.MRIBLANKSEQ):
 
         self.addParameter(key='echoSpacing', string='TE (ms)', val=1.2, field='SEQ')
         self.addParameter(key='repetitionTime', string='TR (ms)', val=100, field='SEQ')
-        self.addParameter(key='phaseTime', string='相位编码时长 (ms)', val=0.001, field='SEQ')
+        self.addParameter(key='phaseTime', string='相位编码/读出predephase时长 (ms)', val=0.001, field='SEQ')
         self.addParameter(key='readoutTime', string='读出时长 (ms)', val=1.0, field='SEQ')
         self.addParameter(key='readPadding', string='读出边距 (μs)', val=10.0, field='SEQ')
 
@@ -56,22 +56,19 @@ class GRE2D5(blankSeq.MRIBLANKSEQ):
         self.samplingPeriod = acqTime / self.nPoints
 
         # 选层方向refocus梯度大小. 平台时间与相位编码平台时间相等
-        self.sliceRefAmp = -self.sliceAmp*(self.rfExTime + self.riseTime)/(self.phaseTime + self.riseTime)
+        self.sliceRefAmp = -self.sliceAmp * (self.rfExTime + self.riseTime) / (self.phaseTime + self.riseTime)
         if np.abs(self.sliceRefAmp) > 1:
             print('选层梯度过大！')
             return 0
 
-        # 去相位时长
-        self.dephaseTime = 0.5*(self.readoutTime + self.riseTime) - self.riseTime
-        if self.dephaseTime < 0:
-            print('读出时间过短！')
-            return 0
-
         # 计算选层结束后到开始RO predephase/PE/slice refocus是否还有时间，如果没有说明TE太短
-        self.tEfill = self.t_e - 0.5*self.readoutTime - 4*self.riseTime - self.phaseTime - 0.5*self.rfExTime
-        if self.tEfill < 0:
+        self.TEfill = self.t_e - 0.5*self.readoutTime - 4*self.riseTime - self.phaseTime - 0.5*self.rfExTime
+        if self.TEfill < 0:
             print('TE 过短！')
             return 0
+        
+        # 计算RO predephase梯度大小
+        ROpreAmp = -self.readAmp * (self.readoutTime + self.riseTime) / (self.phaseTime + self.riseTime)
 
         self.phaseAmpMax = self.phaseAmp * (self.nPoints - 1) / 2
         if self.phaseAmpMax > 1:
@@ -120,11 +117,12 @@ class GRE2D5(blankSeq.MRIBLANKSEQ):
                 tim += hw.blkTime + self.rfExTime + self.riseTime + 1
                 # 选层方向refocus
                 gradient(tim, self.phaseTime, self.sliceRefAmp, self.axes[2])
-                # 相位编码
-                gradient(tim, self.phaseTime, (self.nPoints/2 - j) * self.phaseAmp, self.axes[1])
+
 
                 tim += self.tEfill
-                gradient(tim, self.dephaseTime, -self.readAmp, self.axes[0])  # 读出方向predephase
+                # 相位编码和读出方向predephase同时开
+                gradient(tim, self.phaseTime, (self.nPoints/2 - j) * self.phaseAmp, self.axes[1])
+                gradient(tim, self.phaseTime, ROpreAmp, self.axes[0]) 
                 
                 tim += self.phaseTime + 2 * self.riseTime + 1
                 gradient(tim, acq_time, self.readAmp, self.axes[0])

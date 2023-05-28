@@ -16,6 +16,7 @@ class GRE2D5(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='nPoints', string='像素点数', val=256, field='IM')
         self.addParameter(key='nScans', string='平均次数', val=1, field='IM')
         self.addParameter(key='sliceAmp', string='选层梯度幅值 (o.u.)', val=0.001, field='IM')
+        self.addParameter(key='readAmp', string='读出梯度幅值 (o.u.)', val=0.1, field='IM')
         self.addParameter(key='phaseAmp', string='相位编码步进 (o.u.)', val=0.00001, field='IM')
 
         self.addParameter(key='rfExAmp', string='激发功率 (a.u.)', val=0.08, field='RF')
@@ -26,7 +27,7 @@ class GRE2D5(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='echoSpacing', string='TE (ms)', val=1.2, field='SEQ')
         self.addParameter(key='repetitionTime', string='TR (ms)', val=100, field='SEQ')
         self.addParameter(key='phaseTime', string='相位编码时长 (ms)', val=0.001, field='SEQ')
-        self.addParameter(key='readoutTime', string='读出时长 (μs)', val=1000.0, field='SEQ')
+        self.addParameter(key='readoutTime', string='读出时长 (ms)', val=1.0, field='SEQ')
         self.addParameter(key='readPadding', string='读出边距 (μs)', val=10.0, field='SEQ')
 
         self.addParameter(key='shimming', string='线性匀场 [x,y,z]', val=[210.0, 210.0, 895.0], field='OTH')
@@ -55,9 +56,16 @@ class GRE2D5(blankSeq.MRIBLANKSEQ):
         self.samplingPeriod = acqTime / self.nPoints
 
         # 选层方向refocus梯度大小. 平台时间与相位编码平台时间相等
-        self.sliceRefAmp = -0.5*(self.rfExTime + self.riseTime)/(self.phaseTime + self.riseTime)
-        # 读出方向predephase幅值
-        self.readoutAmp = 0.5*(self.readoutTime + self.riseTime)/(self.phaseTime + self.riseTime)
+        self.sliceRefAmp = -self.sliceAmp*(self.rfExTime + self.riseTime)/(self.phaseTime + self.riseTime)
+        if np.abs(self.sliceRefAmp) > 1:
+            print('选层梯度过大！')
+            return 0
+
+        # 去相位时长
+        self.dephaseTime = 0.5*(self.readoutTime + self.riseTime) - self.riseTime
+        if self.dephaseTime < 0:
+            print('读出时间过短！')
+            return 0
 
         # 计算选层结束后到开始RO predephase/PE/slice refocus是否还有时间，如果没有说明TE太短
         self.tEfill = self.t_e - 0.5*self.readoutTime - 4*self.riseTime - self.phaseTime - 0.5*self.rfExTime
@@ -109,17 +117,17 @@ class GRE2D5(blankSeq.MRIBLANKSEQ):
                 self.rfSincPulse(tim, self.rfExTime, self.rfExAmp, rf_ex_pahse / 180 * np.pi, 3)
                 gradient(tim + hw.blkTime - self.riseTime, self.rfExTime, self.sliceAmp, self.axes[2])
 
-                # 选层方向refocus
                 tim += hw.blkTime + self.rfExTime + self.riseTime + 1
+                # 选层方向refocus
                 gradient(tim, self.phaseTime, self.sliceRefAmp, self.axes[2])
-
-                tim += self.tEfill
                 # 相位编码
                 gradient(tim, self.phaseTime, (self.nPoints/2 - j) * self.phaseAmp, self.axes[1])
-                gradient(tim, self.phaseTime, -self.readoutAmp, self.axes[0])  # 读出方向predephase
+
+                tim += self.tEfill
+                gradient(tim, self.dephaseTime, -self.readAmp, self.axes[0])  # 读出方向predephase
                 
                 tim += self.phaseTime + 2 * self.riseTime + 1
-                gradient(tim, acq_time, self.readoutAmp, self.axes[0])
+                gradient(tim, acq_time, self.readAmp, self.axes[0])
 
                 tim += self.riseTime + self.readPadding
                 self.rxGateSync(tim, acq_time)

@@ -26,7 +26,7 @@ class GRE2D5(blankSeq.MRIBLANKSEQ):
 
         self.addParameter(key='echoSpacing', string='TE (ms)', val=1.2, field='SEQ')
         self.addParameter(key='repetitionTime', string='TR (ms)', val=100, field='SEQ')
-        self.addParameter(key='phaseTime', string='相位编码/读出predephase时长 (ms)', val=0.001, field='SEQ')
+        self.addParameter(key='phaseTime', string='相位编码时长 (ms)', val=0.001, field='SEQ')
         self.addParameter(key='readoutTime', string='读出时长 (ms)', val=1.0, field='SEQ')
         self.addParameter(key='readPadding', string='读出边距 (μs)', val=10.0, field='SEQ')
 
@@ -63,12 +63,13 @@ class GRE2D5(blankSeq.MRIBLANKSEQ):
 
         # 计算选层结束后到开始RO predephase/PE/slice refocus是否还有时间，如果没有说明TE太短
         self.TEfill = self.t_e - 0.5*self.readoutTime - 4*self.riseTime - self.phaseTime - 0.5*self.rfExTime
+        print('TEfill = ', self.TEfill)
         if self.TEfill < 0:
             print('TE 过短！')
             return 0
         
         # 计算RO predephase梯度大小
-        ROpreAmp = -self.readAmp * (self.readoutTime + self.riseTime) / (self.phaseTime + self.riseTime)
+        self.ROpreAmp = -self.readAmp * (self.readoutTime + self.riseTime) / (self.phaseTime + self.riseTime)
 
         self.phaseAmpMax = self.phaseAmp * (self.nPoints - 1) / 2
         if self.phaseAmpMax > 1:
@@ -111,6 +112,7 @@ class GRE2D5(blankSeq.MRIBLANKSEQ):
             for j in range(self.nPoints):
                 tim = 1e5 + (i * self.nPoints + j) * self.t_r
                 rf_ex_pahse = 0.5*117*(j*j + j + 2)
+                self.rfRecPulse(tim, self.rfExTime, self.rfExAmp, rf_ex_pahse / 180 * np.pi)
                 self.rfSincPulse(tim, self.rfExTime, self.rfExAmp, rf_ex_pahse / 180 * np.pi, 3)
                 gradient(tim + hw.blkTime - self.riseTime, self.rfExTime, self.sliceAmp, self.axes[2])
 
@@ -119,13 +121,13 @@ class GRE2D5(blankSeq.MRIBLANKSEQ):
                 gradient(tim, self.phaseTime, self.sliceRefAmp, self.axes[2])
 
 
-                tim += self.tEfill
+                tim += self.TEfill
                 # 相位编码和读出方向predephase同时开
                 gradient(tim, self.phaseTime, (self.nPoints/2 - j) * self.phaseAmp, self.axes[1])
-                gradient(tim, self.phaseTime, ROpreAmp, self.axes[0]) 
+                gradient(tim, self.phaseTime, self.ROpreAmp, self.axes[0]) 
                 
                 tim += self.phaseTime + 2 * self.riseTime + 1
-                gradient(tim, acq_time, self.readAmp, self.axes[0])
+                gradient(tim, self.readoutTime, self.readAmp, self.axes[0])
 
                 tim += self.riseTime + self.readPadding
                 self.rxGateSync(tim, acq_time)

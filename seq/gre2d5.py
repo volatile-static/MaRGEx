@@ -110,20 +110,23 @@ class GRE2D5(blankSeq.MRIBLANKSEQ):
 
         for i in range(self.nScans):
             for j in range(self.nPoints):
-                tim = 1e5 + (i * self.nPoints + j) * self.t_r
-                rf_ex_pahse = 0.5*117*(j*j + j + 2)
-                self.rfRecPulse(tim, self.rfExTime, self.rfExAmp, rf_ex_pahse / 180 * np.pi)
-                self.rfSincPulse(tim, self.rfExTime, self.rfExAmp, rf_ex_pahse / 180 * np.pi, 3)
-                gradient(tim + hw.blkTime - self.riseTime, self.rfExTime, self.sliceAmp, self.axes[2])
+                phase_amp = (self.nPoints/2 - j) * self.phaseAmp
+                rf_ex_phase = 0.5*117*(j*j + j + 2)%360
 
-                tim += hw.blkTime + self.rfExTime + self.riseTime + 1
+                tim = 1e5 + (i * self.nPoints + j) * self.t_r
+                # self.rfRecPulse(tim, self.rfExTime, self.rfExAmp, rf_ex_phase / 180 * np.pi)
+                self.rfSincPulse(tim, self.rfExTime, self.rfExAmp, rf_ex_phase / 180 * np.pi, 5)
+
+                tim += hw.blkTime
+                gradient(tim - self.riseTime, self.rfExTime, self.sliceAmp, self.axes[2])
+
+                tim += self.rfExTime + self.riseTime + 1
                 # 选层方向refocus
                 gradient(tim, self.phaseTime, self.sliceRefAmp, self.axes[2])
 
-
                 tim += self.TEfill
                 # 相位编码和读出方向predephase同时开
-                gradient(tim, self.phaseTime, (self.nPoints/2 - j) * self.phaseAmp, self.axes[1])
+                gradient(tim, self.phaseTime, phase_amp, self.axes[1])
                 gradient(tim, self.phaseTime, self.ROpreAmp, self.axes[0]) 
                 
                 tim += self.phaseTime + 2 * self.riseTime + 1
@@ -136,7 +139,7 @@ class GRE2D5(blankSeq.MRIBLANKSEQ):
                 tim += acq_time - self.readPadding + self.riseTime + self.spoilDelay
                 gradient(tim, self.phaseTime, self.phaseAmpMax*uniform(-1, 1), self.axes[2])
                 # phase rewind
-                gradient(tim, self.phaseTime, -(self.nPoints/2 - j) * self.phaseAmp, self.axes[1])
+                gradient(tim, self.phaseTime, -phase_amp, self.axes[1])
 
         self.endSequence(self.nPoints * self.nScans * self.t_r + 2e6)
         # --------------------- ↑序列结束↑ ---------------------

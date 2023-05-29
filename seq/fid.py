@@ -34,6 +34,8 @@ class FID(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=1000., field='SEQ')
         self.addParameter(key='acqTime', string='Acquisition time (ms)', val=4.0, field='SEQ')
         self.addParameter(key='nPoints', string='Number of points', val=100, field='IM')
+        self.addParameter(key='sincLobes', string='Sinc lobes', val=3, field='IM')
+        self.addParameter(key='sincPhase', string='Sinc phase', val=0, field='IM')
         self.addParameter(key='shimming', string='Shimming (*1e4)', val=[-70, -90, 10], field='OTH')
         self.addParameter(key='txChannel', string='Tx channel', val=0, field='RF')
         self.addParameter(key='rxChannel', string='Rx channel', val=0, field='RF')
@@ -64,6 +66,8 @@ class FID(blankSeq.MRIBLANKSEQ):
         repetitionTime = self.mapVals['repetitionTime']*1e3 # us
         acqTime = self.mapVals['acqTime']*1e3 # us
         nPoints = self.mapVals['nPoints']
+        nLobes = self.mapVals['sincLobes']
+        rfPhase = self.mapVals['sincPhase']
         shimming = np.array(self.mapVals['shimming'])*1e-4
         txChannel = self.mapVals['txChannel']
         rxChannel = self.mapVals['rxChannel']
@@ -81,7 +85,10 @@ class FID(blankSeq.MRIBLANKSEQ):
 
                 # Excitation pulse
                 t0 = tEx - hw.blkTime - rfExTime / 2
-                self.rfRecPulse(t0, rfExTime, rfExAmp, 0, channel=txChannel)
+                if nLobes > 0:
+                    self.rfSincPulse(t0, rfExTime, rfExAmp, rfPhase, nLobes=nLobes)
+                else:
+                    self.rfRecPulse(t0, rfExTime, rfExAmp, rfPhase, channel=txChannel)
 
                 # Rx gate
                 t0 = tEx + rfExTime / 2 + deadTime

@@ -56,7 +56,7 @@ class GRE2D5(blankSeq.MRIBLANKSEQ):
         self.samplingPeriod = acqTime / self.nPoints
 
         # 选层方向refocus梯度大小. 平台时间与相位编码平台时间相等
-        self.sliceRefAmp = -self.sliceAmp * (self.rfExTime + self.riseTime) / (self.phaseTime + self.riseTime)
+        self.sliceRefAmp = -0.5 * self.sliceAmp * (self.rfExTime + self.riseTime) / (self.phaseTime + self.riseTime)
         if np.abs(self.sliceRefAmp) > 1:
             print('选层梯度过大！')
             return 0
@@ -111,10 +111,10 @@ class GRE2D5(blankSeq.MRIBLANKSEQ):
         for i in range(self.nScans):
             for j in range(self.nPoints):
                 phase_amp = (self.nPoints/2 - j) * self.phaseAmp
-                rf_ex_phase = 0.5*117*(j*j + j + 2)%360
+                rf_ex_phase = 0#.5*117*(j*j + j + 2)%360
 
                 tim = 1e5 + (i * self.nPoints + j) * self.t_r
-                # self.rfRecPulse(tim, self.rfExTime, self.rfExAmp, rf_ex_phase / 180 * np.pi)
+                # self.rfRecPulse(tim, self.rfExTime, self.rfExAmp)
                 self.rfSincPulse(tim, self.rfExTime, self.rfExAmp, rf_ex_phase / 180 * np.pi, 5)
 
                 tim += hw.blkTime

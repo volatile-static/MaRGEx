@@ -73,7 +73,7 @@ class T1SE(blankSeq.MRIBLANKSEQ):
             t0 = tShimming + i*tRepetition
             # Excitation pulse
             self.rfRecPulse(t0, rfExTime, rfExAmp)
-            self.rfRecPulse(t0 + echoSpacing/2, rfExTime, rfReAmp)
+            self.rfRecPulse(t0 + echoSpacing/2, rfExTime, rfReAmp, np.pi/2)
             # self.rfSincPulse(t0, rfExTime, rfExAmp, 0, 3)
             # self.rfSincPulse(t0 + echoSpacing/2, rfExTime, rfReAmp, 0, 3)
 

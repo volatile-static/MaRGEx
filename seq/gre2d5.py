@@ -69,7 +69,7 @@ class GRE2D5(blankSeq.MRIBLANKSEQ):
             return 0
         
         # 计算RO predephase梯度大小
-        self.ROpreAmp = -self.readAmp * (self.readoutTime + self.riseTime) / (self.phaseTime + self.riseTime)
+        self.ROpreAmp = -0.5 * self.readAmp * (self.readoutTime + self.riseTime) / (self.phaseTime + self.riseTime)
 
         self.phaseAmpMax = self.phaseAmp * (self.nPoints - 1) / 2
         if self.phaseAmpMax > 1:
@@ -132,9 +132,11 @@ class GRE2D5(blankSeq.MRIBLANKSEQ):
                 tim += self.riseTime + self.readPadding
                 self.rxGateSync(tim, acq_time)
 
-                # spoil
+                # slice spoil
                 tim += acq_time - self.readPadding + self.riseTime + self.spoilDelay
                 gradient(tim, self.phaseTime, self.phaseAmpMax*uniform(-1, 1), self.axes[2])
+                # phase rewind
+                gradient(tim, self.phaseTime, -(self.nPoints/2 - j) * self.phaseAmp, self.axes[1])
 
         self.endSequence(self.nPoints * self.nScans * self.t_r + 2e6)
         # --------------------- ↑序列结束↑ ---------------------

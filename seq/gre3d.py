@@ -11,9 +11,8 @@ class GRE3D(blankSeq.MRIBLANKSEQ):
         super(GRE3D, self).__init__()
         # Input the parameters
         self.error = False
-        self.addParameter(key='seqName', string='梯度回波成像', val='GRE2D')
+        self.addParameter(key='seqName', string='梯度回波成像', val='GRE3D')
 
-        self.addParameter(key='nScans', string='平均次数', val=1, field='IM')
         self.addParameter(key='nPoints', string='像素点数', val=128, field='IM')
         self.addParameter(key='nSlices', string='选层方向点数', val=4, field='IM')
         self.addParameter(key='sliceAmp', string='选层编码步进 (o.u.)', val=0.001, field='IM')
@@ -25,7 +24,7 @@ class GRE3D(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='larmorFreq', string='中心频率 (MHz)', val=hw.larmorFreq, field='RF')
         self.addParameter(key='bwCalib', string='调频带宽 (MHz)', val=0.02, field='RF')
 
-        self.addParameter(key='echoSpacing', string='TE (ms)', val=2.5, field='SEQ')
+        self.addParameter(key='nScans', string='平均次数', val=1, field='SEQ')
         self.addParameter(key='repetitionTime', string='TR (ms)', val=100, field='SEQ')
         self.addParameter(key='phaseTime', string='相位编码时长 (ms)', val=0.3, field='SEQ')
         self.addParameter(key='readoutTime', string='读出时长 (ms)', val=1.0, field='SEQ')
@@ -51,13 +50,12 @@ class GRE3D(blankSeq.MRIBLANKSEQ):
         print('采样深度: ', read_points)
         if read_points > hw.maxRdPoints:
             print('读出点数过多！')
-            return 0
+            # return 0
 
         self.spoilDelay = 100
         self.shimming = np.array(self.shimming) / 1e4
         self.phaseTime *= 1e3  # μs
         self.readoutTime *= 1e3  # μs
-        self.t_e = self.echoSpacing * 1e3  # μs
         self.t_r = self.repetitionTime * 1e3  # μs
 
         acqTime = self.readoutTime - 2*self.readPadding  # 读出边距
@@ -160,9 +158,8 @@ class GRE3D(blankSeq.MRIBLANKSEQ):
             data_full.append(self.decimate(data_average[i], self.nPoints))
         ksp = self.mapVals['ksp3d'] = np.reshape(data_full, (self.nSlices, self.nPoints, self.nPoints))
         img = self.mapVals['img3d'] = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(ksp)))  # 重建
-        self.saveRawData()
 
-        return [{
+        self.output = [{
             'widget': 'image',
             'data': np.abs(img),
             'xLabel': '相位编码',
@@ -179,3 +176,5 @@ class GRE3D(blankSeq.MRIBLANKSEQ):
             'row': 0,
             'col': 1
         }]
+        self.saveRawData()
+        return self.output

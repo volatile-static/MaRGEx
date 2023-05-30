@@ -11,7 +11,7 @@ class GRE2D5(blankSeq.MRIBLANKSEQ):
         super(GRE2D5, self).__init__()
         # Input the parameters
         self.error = False
-        self.addParameter(key='seqName', string='梯度回波成像', val='GRE2D')
+        self.addParameter(key='seqName', string='梯度回波成像', val='GRE2D5')
 
         self.addParameter(key='nPoints', string='像素点数', val=256, field='IM')
         self.addParameter(key='nScans', string='平均次数', val=1, field='IM')

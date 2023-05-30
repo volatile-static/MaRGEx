@@ -19,6 +19,7 @@ class GRE3D(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='sliceAmp', string='选层编码步进 (o.u.)', val=0.001, field='IM')
         self.addParameter(key='phaseAmp', string='相位编码步进 (o.u.)', val=0.001, field='IM')
         self.addParameter(key='readAmp', string='读出梯度幅值 (o.u.)', val=0.1, field='IM')
+        self.addParameter(key='preEmphasisFactor', string='预加重比例', val=1.0, field='IM')
 
         self.addParameter(key='rfExAmp', string='激发功率 (a.u.)', val=0.05, field='RF')
         self.addParameter(key='rfExTime', string='激发时长 (μs)', val=50.0, field='RF')
@@ -64,7 +65,7 @@ class GRE3D(blankSeq.MRIBLANKSEQ):
         self.samplingPeriod = acqTime / self.nPoints
 
         # 计算ReadOut predephase梯度大小
-        self.ROpreAmp = -0.5 * self.readAmp * (self.readoutTime + self.riseTime) / (self.phaseTime + self.riseTime)
+        self.ROpreAmp = self.preEmphasisFactor * -0.5 * self.readAmp * (self.readoutTime + self.riseTime) / (self.phaseTime + self.riseTime)
         if np.abs(self.ROpreAmp) > 1:
             print('ReadOut predephase梯度过大！')
             return 0

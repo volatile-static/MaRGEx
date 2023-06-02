@@ -109,8 +109,8 @@ class T1SE(blankSeq.MRIBLANKSEQ):
         for i in range(self.nScans):
             for j in range(self.nSlices):
                 slice_amp = (self.nSlices/2 - j) * self.sliceAmp
-                for k in range(self.nPoints):
-                    tim = 1e5 + (i*self.nPoints*self.nSlices/self.ETL + j*self.nPoints/self.ETL + int(k/self.ETL)) * self.t_r
+                for k in range(self.nPoints/self.ETL):
+                    tim = 1e5 + (i*self.nPoints*self.nSlices/self.ETL + j*self.nPoints/self.ETL + k) * self.t_r
                     #每次在相位编码方向上采ETL行
                     
                     #激发
@@ -126,7 +126,7 @@ class T1SE(blankSeq.MRIBLANKSEQ):
                         
                         # Slice and Phase encoding
                         t0 = tim + self.rfExTime/2 + self.echoSpacing*(echoIndex+1) - self.readoutTime/2 - 3*self.riseTime - self.phaseTime
-                        phase_amp = (self.nPoints/2-(self.ETL*int(k/self.ETL)+echoIndex)) * self.phaseAmp
+                        phase_amp = (self.nPoints/2-(self.ETL*k+echoIndex)) * self.phaseAmp
                         gradient(t0, self.phaseTime, phase_amp, self.axes[1])
                         gradient(t0, self.phaseTime, slice_amp, self.axes[2])
                         

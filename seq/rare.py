@@ -1,739 +1,186 @@
-"""
-Created on Thu June 2 2022
-@author: J.M. Algarín, MRILab, i3M, CSIC, Valencia
-@email: josalggui@i3m.upv.es
-@Summary: rare sequence class
-"""
-
-import os
-import sys
-#*****************************************************************************
-# Add path to the working directory
-path = os.path.realpath(__file__)
-ii = 0
-for char in path:
-    if (char=='\\' or char=='/') and path[ii+1:ii+14]=='PhysioMRI_GUI':
-        sys.path.append(path[0:ii+1]+'PhysioMRI_GUI')
-        sys.path.append(path[0:ii+1]+'marcos_client')
-    ii += 1
-#******************************************************************************
+import controller.experiment_gui as ex
 import numpy as np
-import experiment as ex
-import scipy.signal as sig
-import configs.hw_config as hw # Import the scanner hardware config
-import seq.mriBlankSeq as blankSeq  # Import the mriBlankSequence for any new sequence.
-import pyqtgraph as pg
-import time
-from phantominator import shepp_logan
+import seq.mriBlankSeq as blankSeq
+import configs.hw_config as hw
 
-#*********************************************************************************
-#*********************************************************************************
-#*********************************************************************************
 
 class RARE(blankSeq.MRIBLANKSEQ):
     def __init__(self):
         super(RARE, self).__init__()
         # Input the parameters
-        self.addParameter(key='seqName', string='RAREInfo', val='RARE')
-        self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
-        self.addParameter(key='freqOffset', string='Larmor frequency offset (kHz)', val=0.0, field='RF')
-        self.addParameter(key='rfExFA', string='Excitation flip angle (°)', val=90, field='RF')
-        self.addParameter(key='rfReFA', string='Refocusing flip angle (°)', val=180, field='RF')
-        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=35.0, field='RF')
-        self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=70.0, field='RF')
-        self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=20.0, field='SEQ')
-        self.addParameter(key='preExTime', string='Preexitation time (ms)', val=0.0, field='SEQ')
-        self.addParameter(key='inversionTime', string='Inversion time (ms)', val=0.0, field='SEQ', tip="0 to ommit this pulse")
-        self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=300., field='SEQ', tip="0 to ommit this pulse")
-        self.addParameter(key='fov', string='FOV[x,y,z] (cm)', val=[15.0, 15.0, 15.0], field='IM')
-        self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], field='IM', tip="Position of the gradient isocenter")
-        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[30, 1, 1], field='IM')
-        self.addParameter(key='angle', string='Angle (°)', val=0.0, field='IM')
-        self.addParameter(key='rotationAxis', string='Rotation axis', val=[0, 0, 1], field='IM')
-        self.addParameter(key='etl', string='Echo train length', val=5, field='SEQ')
-        self.addParameter(key='acqTime', string='Acquisition time (ms)', val=2.0, field='SEQ')
-        self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[0, 1, 2], field='IM', tip="0=x, 1=y, 2=z")
-        self.addParameter(key='axesEnable', string='Axes enable', val=[1, 0, 0], field='IM', tip="Use 0 for directions with matrix size 1, use 1 otherwise.")
-        self.addParameter(key='sweepMode', string='Sweep mode', val=1, field='SEQ', tip="0: sweep from -kmax to kmax. 1: sweep from 0 to kmax. 2: sweep from kmax to 0")
-        self.addParameter(key='rdGradTime', string='Rd gradient time (ms)', val=2.5, field='OTH')
-        self.addParameter(key='rdDephTime', string='Rd dephasing time (ms)', val=1.0, field='OTH')
-        self.addParameter(key='phGradTime', string='Ph gradient time (ms)', val=1.0, field='OTH')
-        self.addParameter(key='rdPreemphasis', string='Rd preemphasis', val=1.0, field='OTH')
-        self.addParameter(key='dummyPulses', string='Dummy pulses', val=1, field='SEQ', tip="Use last dummy pulse to calibrate k = 0")
-        self.addParameter(key='shimming', string='Shimming (*1e4)', val=[-12.5, -12.5, 7.5], field='OTH')
-        self.addParameter(key='parFourierFraction', string='Partial fourier fraction', val=1.0, field='OTH', tip="Fraction of k planes aquired in slice diretion")
-        self.addParameter(key='freqCal', string='Calibrate frequency', val=1, field='OTH', tip="0 to not calibrate, 1 to calibrate")
+        self.addParameter(key='seqName', string='3D RARE', val='RARE')
+        
+        self.addParameter(key='larmorFreq', string='中心频率 (MHz)', val=hw.larmorFreq, field='RF')
+        self.addParameter(key='rfExAmp', string='90°功率', val=0.3, field='RF')
+        self.addParameter(key='rfRefAmp', string='180°功率', val=0.6, field='RF')
+        self.addParameter(key='rfExTime', string='RF excitation time (us)', val=30.0, field='RF')
+        self.addParameter(key='rfRefTime', string='RF refocus time (us)', val=30.0, field='RF')    
+                
+        self.addParameter(key='nScans', string='平均次数', val=1, field='IM')
+        self.addParameter(key='nPoints', string='像素点数', val=128, field='IM')
+        self.addParameter(key='nSlices', string='选层方向点数', val=4, field='IM')
+        self.addParameter(key='sliceAmp', string='选层编码步进 (o.u.)', val=0.001, field='IM')
+        self.addParameter(key='phaseAmp', string='相位编码步进 (o.u.)', val=0.001, field='IM')
+        self.addParameter(key='readAmp', string='读出梯度幅值 (o.u.)', val=0.1, field='IM')
+
+        self.addParameter(key='etl', string='回波链长度', val=4, field='SEQ')
+        self.addParameter(key='echoSpacing', string='回波间隔 (ms)', val=5, field='SEQ')
+        self.addParameter(key='repetitionTime',string='TR (ms)', val=2000.0, field='SEQ')
+        self.addParameter(key='phaseTime', string='相位编码时长 (ms)', val=2, field='SEQ')
+        self.addParameter(key='readoutTime', string='读出时长 (ms)', val=3.0, field='SEQ')
+        self.addParameter(key='readPadding', string='读出边距 (μs)', val=1.0, field='SEQ')
+
+        self.addParameter(key='shimming', string='线性匀场 [x,y,z]', val=[210.0, 210.0, 895.0], field='OTH')
+        self.addParameter(key='axes', string='[读出，相位，选层]', val=[0, 1, 2], field='OTH')
+        self.addParameter(key='preEmphasisFactor', string='预加重比例', val=1.0, field='OTH')
 
     def sequenceInfo(self):
-        print(" ")
-        print("3D RARE sequence")
-        print("Author: Dr. J.M. Algarín")
-        print("Contact: josalggui@i3m.upv.es")
-        print("mriLab @ i3M, CSIC, Spain \n")
-        print("Sweep modes: 0:k20, 1:02k, 2:k2k")
-        print("Axes: 0:x, 1:y, 2:z")
+        print("============ 3D RARE成像 ============")
+        print("我们通过相位编码步进值和持续时间来控制相位编码方向FOV，通过读出梯度值和采样间隔时间(ReadoutTime/nPoints)来控制频率编码方向FOV")
 
-    def sequenceTime(self):
-        nScans = self.mapVals['nScans']
-        nPoints = np.array(self.mapVals['nPoints'])
-        etl = self.mapVals['etl']
-        repetitionTime = self.mapVals['repetitionTime']
-        parFourierFraction = self.mapVals['parFourierFraction']
-
-        # check if rf amplitude is too high
-        rfExFA = self.mapVals['rfExFA'] / 180 * np.pi  # rads
-        rfReFA = self.mapVals['rfReFA'] / 180 * np.pi  # rads
-        rfExTime = self.mapVals['rfExTime']  # us
-        rfReTime = self.mapVals['rfReTime']  # us
-        rfExAmp = rfExFA / (rfExTime * hw.b1Efficiency)
-        rfReAmp = rfReFA / (rfReTime * hw.b1Efficiency)
-        if rfExAmp>1 or rfReAmp>1:
-            print("RF amplitude is too high, try with longer RF pulse time.")
-            return(0)
-
-        seqTime = nPoints[1]/etl*nPoints[2]*repetitionTime*1e-3*nScans*parFourierFraction/60
-        seqTime = np.round(seqTime, decimals=1)
-        return(seqTime)  # minutes, scanTime
-
+    def sequenceTime(self):  # minutes
+        self.sequenceAtributes()
+        return self.repetitionTime * self.nPoints * self.nSlices * self.nScans / self.etl / 6e4
+        
     def sequenceAtributes(self):
-        super().sequenceAtributes()
+        self.error = True
+        super().sequenceAtributes()  # 把mapVals里的键值对读进self里
 
-        # Conversion of variables to non-multiplied units
-        self.freqOffset = self.freqOffset * 1e3
-        self.rfExTime = self.rfExTime * 1e-6
-        self.rfReTime = self.rfReTime * 1e-6
-        self.fov = np.array(self.fov) * 1e-2
-        self.dfov = np.array(self.dfov) * 1e-3
-        self.echoSpacing = self.echoSpacing * 1e-3
-        self.acqTime = self.acqTime * 1e-3
-        self.shimming = np.array(self.shimming) * 1e-4
-        self.repetitionTime = self.repetitionTime * 1e-3
-        self.preExTime = self.preExTime * 1e-3
-        self.inversionTime = self.inversionTime * 1e-3
-        self.rdGradTime = self.rdGradTime * 1e-3
-        self.rdDephTime = self.rdDephTime * 1e-3
-        self.phGradTime = self.phGradTime * 1e-3
-        self.angle = self.angle * np.pi / 180
+        read_points = self.nScans*self.nSlices*self.nPoints*self.nPoints*hw.oversamplingFactor
+        print('采样深度: ', read_points)
+        if read_points > hw.maxRdPoints:
+            print('读出点数过多！')
+            # return 0
+        
+        self.riseTime = 300
+        self.riseSteps = 20
+            
+        self.shimming = np.array(self.shimming) / 1e4
+        self.phaseTime *= 1e3  # μs
+        self.readoutTime *= 1e3  # μs
+        self.t_r = self.repetitionTime * 1e3  # μs
+        self.t_e = self.echoSpacing * 1e3  # μs
 
-        # Add rotation, dfov and fov to the history
-        self.rotation = self.rotationAxis.copy()
-        self.rotation.append(self.angle)
-        self.rotations.append(self.rotation)
-        self.dfovs.append(self.dfov)
-        self.fovs.append(self.fov)
+        acqTime = self.readoutTime - 2*self.readPadding  # 读出边距
+        self.samplingPeriod = acqTime / self.nPoints
 
-    def sequenceRun(self, plotSeq=0, demo=False):
-        init_gpa=False # Starts the gpa
-        self.demo = demo
+        # 计算ReadOut predephase梯度大小
+        self.ROpreAmp = self.preEmphasisFactor * 0.5 * self.readAmp * (self.readoutTime + self.riseTime) / (self.phaseTime + self.riseTime)
+        if np.abs(self.ROpreAmp) > 1:
+            print('ReadOut predephase梯度过大！')
+            return 0
 
-        # Set the fov
-        self.dfov = self.getFovDisplacement()
-        self.dfov = self.dfov[self.axesOrientation]
-        self.fov = self.fov[self.axesOrientation]
+        self.phaseAmpMax = self.phaseAmp * (self.nPoints - 1) / 2
+        if self.phaseAmpMax > 1:
+            print('相位编码过大！')
+            return 0
+        self.error = False
 
-        # Miscellaneous
-        self.freqOffset = self.freqOffset*1e6 # MHz
-        gradRiseTime = hw.grad_rise_time
-        gSteps = hw.grad_steps
-        addRdPoints = 10             # Initial rd points to avoid artifact at the begining of rd
-        randFactor = 0e-3                        # Random amplitude to add to the phase gradients
-        resolution = self.fov/self.nPoints
-        rfExAmp = self.rfExFA/(self.rfExTime*1e6*hw.b1Efficiency)*np.pi/180
-        rfReAmp = self.rfReFA/(self.rfReTime*1e6*hw.b1Efficiency)*np.pi/180
-        self.mapVals['rfExAmp'] = rfExAmp
-        self.mapVals['rfReAmp'] = rfReAmp
-        self.mapVals['resolution'] = resolution
-        self.mapVals['gradRiseTime'] = gradRiseTime
-        self.mapVals['randFactor'] = randFactor
-        self.mapVals['addRdPoints'] = addRdPoints
 
-        if rfExAmp>1 or rfReAmp>1:
-            print("RF amplitude is too high, try with longer RF pulse time.")
-            return(0)
+    def sequenceRun(self, plotSeq=0):
+        if self.error:
+            return 0
+        self.error = True
 
-        # Matrix size
-        nRD = self.nPoints[0]+2*addRdPoints
-        nPH = self.nPoints[1]
-        nSL = self.nPoints[2]
+        self.expt = ex.Experiment(lo_freq=self.mapVals['larmorFreq'], rx_t=self.samplingPeriod)
+        self.mapVals['samplingRate'] = self.expt.getSamplingRate()  # 采样间隔
+        acq_time = self.mapVals['samplingRate'] * self.nPoints
+        print('采样率：', 1e3/self.mapVals['samplingRate'], ' (kHz)')
+        
+        def gradient(t, flat, amp, channel):
+            self.gradTrap(
+                tStart=t,
+                gRiseTime=self.riseTime,
+                gFlattopTime=flat,
+                gAmp=amp,
+                gSteps=self.riseSteps,
+                gAxis=channel,
+                shimming=self.shimming
+            )
 
-        # ETL if etl>nPH
-        if self.etl>nPH:
-            self.etl = nPH
+        def shot(t, segment_idx, slice_amp):
+            self.rfRecPulse(t, self.rfExTime, self.rfExAmp, 0)  # 激发
+            # 读出方向predephase
+            t += hw.blkTime + self.rfExTime
+            gradient(t, self.phaseTime, self.ROpreAmp, self.axes[0]) 
+        
+            for echo_idx in range(self.etl):
+                phase_amp = (self.nPoints/2 - (self.etl*segment_idx + echo_idx)) * self.phaseAmp
 
-        # parAcqLines in case parAcqLines = 0
-        parAcqLines = int(int(self.nPoints[2]*self.parFourierFraction)-self.nPoints[2]/2)
-        self.mapVals['partialAcquisition'] = parAcqLines
+                # Refocusing pulse
+                t0 = t + self.rfExTime/2 + self.t_e*(echo_idx+1) - self.t_e/2 - self.rfReTime/2
+                self.rfRecPulse(t0, self.rfReTime, self.rfReAmp, np.pi/2)
+                
+                # Slice and Phase encoding
+                t0 = t + self.rfExTime/2 + self.t_e*(echo_idx+1) - self.readoutTime/2 - 3*self.riseTime - self.phaseTime
+                gradient(t0, self.phaseTime, phase_amp, self.axes[1])
+                gradient(t0, self.phaseTime, slice_amp, self.axes[2])
+                
+                # Readout
+                t0 += self.phaseTime + 2 * self.riseTime
+                gradient(t0, self.readoutTime, self.readAmp, self.axes[0])
 
-        # BW
-        BW = self.nPoints[0]/self.acqTime*1e-6        # MHz
-        BWov = BW*hw.oversamplingFactor     # MHz
-        samplingPeriod = 1/BWov             # us
+                t0 += self.riseTime + self.readPadding
+                self.rxGateSync(t0, acq_time)
 
-        # Readout gradient time
-        if self.rdGradTime<self.acqTime:
-            self.rdGradTime = self.acqTime
-        self.mapVals['rdGradTime'] = self.rdGradTime * 1e3 # ms
+                t0 += acq_time - self.readPadding + self.riseTime
+                # phase and slice rewind, no spoil
+                gradient(t0, self.phaseTime, -phase_amp, self.axes[1])
+                gradient(t0, self.phaseTime, -slice_amp, self.axes[2])
 
-        # Phase and slice de- and re-phasing time
-        if self.phGradTime==0 or self.phGradTime>self.echoSpacing/2-self.rfExTime/2-self.rfReTime/2-2*gradRiseTime:
-            self.phGradTime = self.echoSpacing/2-self.rfExTime/2-self.rfReTime/2-2*gradRiseTime
-        self.mapVals['phGradTime'] = self.phGradTime*1e3 # ms
+        # --------------------- ↓序列开始↓ ---------------------
+        tim = 20
+        self.iniSequence(tim, self.shimming)
 
-        # Max gradient amplitude
-        rdGradAmplitude = self.nPoints[0]/(hw.gammaB*self.fov[0]*self.acqTime)*self.axesEnable[0]
-        phGradAmplitude = nPH/(2*hw.gammaB*self.fov[1]*(self.phGradTime+gradRiseTime))*self.axesEnable[1]
-        slGradAmplitude = nSL/(2*hw.gammaB*self.fov[2]*(self.phGradTime+gradRiseTime))*self.axesEnable[2]
-        self.mapVals['rdGradAmplitude'] = rdGradAmplitude
-        self.mapVals['phGradAmplitude'] = phGradAmplitude
-        self.mapVals['slGradAmplitude'] = slGradAmplitude
+        for i in range(self.nScans):
+            for j in range(self.nSlices):
+                slice_amp = (self.nSlices/2 - j) * self.sliceAmp
+                for k in range(self.nPoints/self.etl):  # 每次在相位编码方向上采ETL行
+                    t0 = 1e5 + ((i*self.nSlices + j)*self.nPoints/self.etl + k)*self.t_r
+                    shot(t=t0, segment_idx=k, slice_amp=slice_amp)
 
-        # Readout dephasing amplitude
-        rdDephAmplitude = 0.5*rdGradAmplitude*(gradRiseTime+self.rdGradTime)/(gradRiseTime+self.rdDephTime)
-        self.mapVals['rdDephAmplitude'] = rdDephAmplitude
+        self.endSequence(self.nScans * self.nSlices * self.nPoints / self.etl * self.t_r + 2e6)
+        # --------------------- ↑序列结束↑ ---------------------
 
-        # Phase and slice gradient vector
-        phGradients = np.linspace(-phGradAmplitude,phGradAmplitude,num=nPH,endpoint=False)
-        slGradients = np.linspace(-slGradAmplitude,slGradAmplitude,num=nSL,endpoint=False)
-
-        # Now fix the number of slices to partailly acquired k-space
-        nSL = (int(self.nPoints[2]/2)+parAcqLines)*self.axesEnable[2]+(1-self.axesEnable[2])
-
-        # Add random displacemnt to phase encoding lines
-        for ii in range(nPH):
-            if ii<np.ceil(nPH/2-nPH/20) or ii>np.ceil(nPH/2+nPH/20):
-                phGradients[ii] = phGradients[ii]+randFactor*np.random.randn()
-        kPH = hw.gammaB*phGradients*(gradRiseTime+self.phGradTime)
-        self.mapVals['phGradients'] = phGradients
-        self.mapVals['slGradients'] = slGradients
-
-        # Set phase vector to given sweep mode
-        ind = self.getIndex(self.etl, nPH, self.sweepMode)
-        self.mapVals['sweepOrder'] = ind
-        phGradients = phGradients[ind]
-
-        # Get the rotation matrix
-        rot = self.getRotationMatrix()
-        gradAmp = np.array([0.0, 0.0, 0.0])
-        gradAmp[self.axesOrientation[0]] = 1
-        gradAmp = np.reshape(gradAmp, (3, 1))
-        result = np.dot(rot, gradAmp)
-
-        print("Readout direction:")
-        print(np.reshape(result, (1, 3)))
-
-        def createSequence(phIndex=0, slIndex=0, repeIndexGlobal=0):
-            repeIndex = 0
-            if self.rdGradTime==0:   # Check if readout gradient is dc or pulsed
-                dc = True
-            else:
-                dc = False
-            acqPoints = 0
-            orders = 0
-
-            # Check in case of dummy pulse fill the cache
-            if (self.dummyPulses>0 and self.etl*nRD*2>hw.maxRdPoints) or (self.dummyPulses==0 and self.etl*nRD>hw.maxRdPoints):
-                print('ERROR: Too many acquired points.')
-                return()
-
-            # Set shimming
-            self.iniSequence(20, self.shimming)
-            while acqPoints+self.etl*nRD<=hw.maxRdPoints and orders<=hw.maxOrders and repeIndexGlobal<nRepetitions:
-                # Initialize time
-                tEx = 20e3+self.repetitionTime*repeIndex+self.inversionTime+self.preExTime
-
-                # First I do a noise measurement.
-                if repeIndex==0:
-                    t0 = tEx-self.preExTime-self.inversionTime-4*self.acqTime
-                    self.rxGate(t0, self.acqTime+2*addRdPoints/BW)
-                    acqPoints += nRD
-
-                # Pre-excitation pulse
-                if repeIndex>=self.dummyPulses and self.preExTime!=0:
-                    t0 = tEx-self.preExTime-self.inversionTime-self.rfExTime/2-hw.blkTime
-                    self.rfRecPulse(t0, self.rfExTime, rfExAmp, 0)
-                    self.gradTrap(t0 + hw.blkTime + self.rfReTime, gradRiseTime, self.preExTime * 0.5, -0.005, gSteps,
-                                  self.axesOrientation[0], self.shimming)
-                    self.gradTrap(t0 + hw.blkTime + self.rfReTime, gradRiseTime, self.preExTime * 0.5, -0.005, gSteps,
-                                  self.axesOrientation[1], self.shimming)
-                    self.gradTrap(t0 + hw.blkTime + self.rfReTime, gradRiseTime, self.preExTime * 0.5, -0.005, gSteps,
-                                  self.axesOrientation[2], self.shimming)
-
-                orders = orders+gSteps*6
-
-                # Inversion pulse
-                if repeIndex>=self.dummyPulses and self.inversionTime!=0:
-                    t0 = tEx-self.inversionTime-self.rfReTime/2-hw.blkTime
-                    self.rfRecPulse(t0, self.rfReTime, rfReAmp, 0)
-                    self.gradTrap(t0 + hw.blkTime + self.rfReTime, gradRiseTime, self.inversionTime * 0.5, 0.005,
-                                  gSteps, self.axesOrientation[0], self.shimming)
-                    self.gradTrap(t0 + hw.blkTime + self.rfReTime, gradRiseTime, self.inversionTime * 0.5, 0.005,
-                                  gSteps, self.axesOrientation[1], self.shimming)
-                    self.gradTrap(t0 + hw.blkTime + self.rfReTime, gradRiseTime, self.inversionTime * 0.5, 0.005,
-                                  gSteps, self.axesOrientation[2], self.shimming)
-
-                orders = orders+gSteps*6
-
-                # DC gradient if desired
-                if (repeIndex==0 or repeIndex>=self.dummyPulses) and dc==True:
-                    t0 = tEx-10e3
-                    gradAmp = np.array([0.0, 0.0, 0.0])
-                    gradAmp[self.axesOrientation[0]] = rdGradAmplitude
-                    gradAmp = np.dot(rot, np.reshape(gradAmp, (3, 1)))
-                    self.gradTrap(t0, gradRiseTime, 10e3 + self.echoSpacing * (self.etl + 1), gradAmp, gSteps,
-                                  0, self.shimming)
-                    self.gradTrap(t0, gradRiseTime, 10e3 + self.echoSpacing * (self.etl + 1), gradAmp, gSteps,
-                                  1, self.shimming)
-                    self.gradTrap(t0, gradRiseTime, 10e3 + self.echoSpacing * (self.etl + 1), gradAmp, gSteps,
-                                  2, self.shimming)
-
-                    orders = orders+gSteps*2
-
-                # Excitation pulse
-                t0 = tEx-hw.blkTime-self.rfExTime/2
-                self.rfRecPulse(t0,self.rfExTime,rfExAmp,0)
-
-                # Dephasing readout
-                gradAmp = np.array([0.0, 0.0, 0.0])
-                gradAmp[self.axesOrientation[0]] = rdDephAmplitude
-                gradAmp = np.dot(rot, np.reshape(gradAmp, (3, 1)))
-                if (repeIndex==0 or repeIndex>=self.dummyPulses) and dc==False:
-                    t0 = tEx+self.rfExTime/2-hw.gradDelay
-                    self.gradTrap(t0, gradRiseTime, self.rdDephTime, gradAmp[0] * self.rdPreemphasis, gSteps,
-                                  0, self.shimming)
-                    self.gradTrap(t0, gradRiseTime, self.rdDephTime, gradAmp[1] * self.rdPreemphasis, gSteps,
-                                  1, self.shimming)
-                    self.gradTrap(t0, gradRiseTime, self.rdDephTime, gradAmp[2] * self.rdPreemphasis, gSteps,
-                                  2, self.shimming)
-                    orders = orders+gSteps*6
-
-                # Echo train
-                for echoIndex in range(self.etl):
-                    tEcho = tEx+self.echoSpacing*(echoIndex+1)
-
-                    # Refocusing pulse
-                    t0 = tEcho-self.echoSpacing/2-self.rfReTime/2-hw.blkTime
-                    self.rfRecPulse(t0, self.rfReTime, rfReAmp, np.pi/2)
-
-                    # Dephasing phase and slice gradients
-                    gradAmp = np.array([0.0, 0.0, 0.0])
-                    gradAmp[self.axesOrientation[1]] = phGradients[phIndex]
-                    gradAmp[self.axesOrientation[2]] = slGradients[slIndex]
-                    gradAmp = np.dot(rot, np.reshape(gradAmp, (3, 1)))
-                    if repeIndex>=self.dummyPulses:         # This is to account for dummy pulses
-                        t0 = tEcho-self.echoSpacing/2+self.rfReTime/2-hw.gradDelay
-                        self.gradTrap(t0, gradRiseTime, self.phGradTime, gradAmp[0], gSteps, 0, self.shimming)
-                        self.gradTrap(t0, gradRiseTime, self.phGradTime, gradAmp[1], gSteps, 1, self.shimming)
-                        self.gradTrap(t0, gradRiseTime, self.phGradTime, gradAmp[2], gSteps, 2, self.shimming)
-                        orders = orders+gSteps*6
-
-                    # Readout gradient
-                    gradAmp = np.array([0.0, 0.0, 0.0])
-                    gradAmp[self.axesOrientation[0]] = rdGradAmplitude
-                    gradAmp = np.dot(rot, np.reshape(gradAmp, (3, 1)))
-                    if (repeIndex==0 or repeIndex>=self.dummyPulses) and dc==False:         # This is to account for dummy pulses
-                        t0 = tEcho-self.rdGradTime/2-gradRiseTime-hw.gradDelay
-                        self.gradTrap(t0, gradRiseTime, self.rdGradTime, gradAmp[0], gSteps, 0, self.shimming)
-                        self.gradTrap(t0, gradRiseTime, self.rdGradTime, gradAmp[1], gSteps, 1, self.shimming)
-                        self.gradTrap(t0, gradRiseTime, self.rdGradTime, gradAmp[2], gSteps, 2, self.shimming)
-                        orders = orders+gSteps*6
-
-                    # Rx gate
-                    if (repeIndex==0 or repeIndex>=self.dummyPulses):
-                        t0 = tEcho-self.acqTime/2-addRdPoints/BW
-                        self.rxGate(t0, self.acqTime+2*addRdPoints/BW)
-                        acqPoints += nRD
-
-                    # Rephasing phase and slice gradients
-                    gradAmp = np.array([0.0, 0.0, 0.0])
-                    gradAmp[self.axesOrientation[1]] = phGradients[phIndex]
-                    gradAmp[self.axesOrientation[2]] = slGradients[slIndex]
-                    gradAmp = np.dot(rot, np.reshape(gradAmp, (3, 1)))
-                    # t0 = tEcho+self.acqTime/2+addRdPoints/BW-hw.gradDelay
-                    t0 = tEcho+self.rdGradTime/2+gradRiseTime-hw.gradDelay
-                    if (echoIndex<self.etl-1 and repeIndex>=self.dummyPulses):
-                        self.gradTrap(t0, gradRiseTime, self.phGradTime, -gradAmp[0], gSteps, 0, self.shimming)
-                        self.gradTrap(t0, gradRiseTime, self.phGradTime, -gradAmp[1], gSteps, 1, self.shimming)
-                        self.gradTrap(t0, gradRiseTime, self.phGradTime, -gradAmp[2], gSteps, 2, self.shimming)
-                        orders = orders+gSteps*6
-                    elif(echoIndex==self.etl-1 and repeIndex>=self.dummyPulses):
-                        self.gradTrap(t0, gradRiseTime, self.phGradTime, gradAmp[0], gSteps, 0, self.shimming)
-                        self.gradTrap(t0, gradRiseTime, self.phGradTime, gradAmp[1], gSteps, 1, self.shimming)
-                        self.gradTrap(t0, gradRiseTime, self.phGradTime, gradAmp[2], gSteps, 2, self.shimming)
-                        orders = orders+gSteps*6
-
-                    # Update the phase and slice gradient
-                    if repeIndex>=self.dummyPulses:
-                        if phIndex == nPH-1:
-                            phIndex = 0
-                            slIndex += 1
-                        else:
-                            phIndex += 1
-                if repeIndex>=self.dummyPulses: repeIndexGlobal += 1 # Update the global repeIndex
-                repeIndex+=1 # Update the repeIndex after the ETL
-
-            # Turn off the gradients after the end of the batch
-            self.endSequence(repeIndex*self.repetitionTime)
-
-            # Return the output variables
-            return(phIndex, slIndex, repeIndexGlobal, acqPoints)
-
-        # Changing time parameters to us
-        self.rfExTime = self.rfExTime*1e6
-        self.rfReTime = self.rfReTime*1e6
-        self.echoSpacing = self.echoSpacing*1e6
-        self.repetitionTime = self.repetitionTime*1e6
-        gradRiseTime = gradRiseTime*1e6
-        self.phGradTime = self.phGradTime*1e6
-        self.rdGradTime = self.rdGradTime*1e6
-        self.rdDephTime = self.rdDephTime*1e6
-        self.inversionTime = self.inversionTime*1e6
-        self.preExTime = self.preExTime*1e6
-        nRepetitions = int(nSL*nPH/self.etl)
-        scanTime = nRepetitions*self.repetitionTime
-        self.mapVals['scanTime'] = scanTime*nSL*1e-6
-
-        # Calibrate frequency
-        if self.freqCal and (not plotSeq) and (not self.demo):
-            hw.larmorFreq = self.freqCalibration(bw=0.05)
-            hw.larmorFreq = self.freqCalibration(bw=0.005)
-        self.mapVals['larmorFreq'] = hw.larmorFreq
-
-        # Create full sequence
-        # Run the experiment
-        dataFull = []
-        dummyData = []
-        overData = []
-        noise = []
-        nBatches = 0
-        repeIndexArray = np.array([0])
-        repeIndexGlobal = repeIndexArray[0]
-        phIndex = 0
-        slIndex = 0
-        acqPointsPerBatch = []
-        while repeIndexGlobal<nRepetitions:
-            nBatches += 1
-            # Create the experiment if it is not a demo
-            if not self.demo:
-                self.expt = ex.Experiment(lo_freq=hw.larmorFreq+self.freqOffset, rx_t=samplingPeriod, init_gpa=init_gpa, gpa_fhdo_offset_time=(1 / 0.2 / 3.1))
-                samplingPeriod = self.expt.get_rx_ts()[0]
-                BW = 1/samplingPeriod/hw.oversamplingFactor
-
-            # Run the createSequence method
-            self.acqTime = self.nPoints[0]/BW        # us
-            self.mapVals['bw'] = BW
-            phIndex, slIndex, repeIndexGlobal, aa = createSequence(phIndex=phIndex,
-                                                               slIndex=slIndex,
-                                                               repeIndexGlobal=repeIndexGlobal)
-            # Save instructions into MaRCoS if not a demo
-            if not self.demo:
-                if self.floDict2Exp(rewrite=nBatches==1):
-                    pass
-                else:
-                    print("\nERROR: sequence waveforms out of hardware bounds")
-                    return False
-
-            repeIndexArray = np.concatenate((repeIndexArray, np.array([repeIndexGlobal-1])), axis=0)
-            acqPointsPerBatch.append(aa)
-
-            for ii in range(self.nScans):
-                if not plotSeq:
-                    print("\nBatch %i, scan %i running..." % (nBatches, ii+1))
-                    if not self.demo:
-                        acq_points = 0
-                        while acq_points != (aa * hw.oversamplingFactor):
-                            rxd, msgs = self.expt.run()
-                            rxd['rx0'] = rxd['rx0']*hw.adcFactor   # Here I normalize to get the result in mV
-                            acq_points = np.size(rxd['rx0'])
-                            print("Acquired points = %i" % acq_points)
-                            print("Expected points = %i" % (aa * hw.oversamplingFactor))
-                        print("Batch %i, scan %i ready!")
-                    else:
-                        rxd = {}
-                        rxd['rx0'] = np.random.randn(aa*hw.oversamplingFactor)
-                        print("Batch %i, scan %i ready!" % (nBatches, ii+1))
-                    # Get noise data
-                    noise = np.concatenate((noise, rxd['rx0'][0:nRD*hw.oversamplingFactor]), axis = 0)
-                    rxd['rx0'] = rxd['rx0'][nRD*hw.oversamplingFactor::]
-                    # Get data
-                    if self.dummyPulses>0:
-                        dummyData = np.concatenate((dummyData, rxd['rx0'][0:nRD*self.etl*hw.oversamplingFactor]), axis = 0)
-                        overData = np.concatenate((overData, rxd['rx0'][nRD*self.etl*hw.oversamplingFactor::]), axis = 0)
-                    else:
-                        overData = np.concatenate((overData, rxd['rx0']), axis = 0)
-
-            if not self.demo: self.expt.__del__()
-        del aa
+        if not self.floDict2Exp():  # 验证时序
+            return 0
 
         if not plotSeq:
-            acqPointsPerBatch= (np.array(acqPointsPerBatch)-self.etl*nRD*(self.dummyPulses>0)-nRD)*self.nScans
-            print('\nScans ready!')
-            self.mapVals['noiseData'] = noise
-            self.mapVals['overData'] = overData
+            # Run the experiment and get data
+            rxd, msgs = self.expt.run()
 
-            # Fix the echo position using oversampled data
-            if self.dummyPulses>0:
-                dummyData = np.reshape(dummyData,  (nBatches*self.nScans, self.etl, nRD*hw.oversamplingFactor))
-                dummyData = np.average(dummyData, axis=0)
-                self.mapVals['dummyData'] = dummyData
-                overData = np.reshape(overData, (-1, self.etl, nRD*hw.oversamplingFactor))
-                #overData = self.fixEchoPosition(dummyData, overData)
-                overData = np.reshape(overData, -1)
+            self.expt.__del__()
+        self.error = False
 
-            # Generate dataFull
-            dataFull = sig.decimate(overData, hw.oversamplingFactor, ftype='fir', zero_phase=True)
-            if nBatches>1:
-                dataFullA = dataFull[0:sum(acqPointsPerBatch[0:-1])]
-                dataFullB = dataFull[sum(acqPointsPerBatch[0:-1])::]
-
-            # Reorganize dataFull
-            dataProv = np.zeros([self.nScans,nSL*nPH*nRD])
-            dataProv = dataProv+1j*dataProv
-            if nBatches>1:
-                dataFullA = np.reshape(dataFullA, (nBatches-1, self.nScans, -1, nRD))
-                dataFullB = np.reshape(dataFullB, (1, self.nScans, -1, nRD))
-            else:
-                dataFull = np.reshape(dataFull, (nBatches, self.nScans, -1, nRD))
-            for scan in range(self.nScans):
-                if nBatches>1:
-                    dataProv[scan, :] = np.concatenate((np.reshape(dataFullA[:,scan,:,:],-1), np.reshape(dataFullB[:,scan,:,:],-1)), axis=0)
-                else:
-                    dataProv[scan, :] = np.reshape(dataFull[:,scan,:,:],-1)
-            dataFull = np.reshape(dataProv,-1)
-
-            # Get index for krd = 0
-            # Average data
-            dataProv = np.reshape(dataFull, (self.nScans, nRD*nPH*nSL))
-            dataProv = np.average(dataProv, axis=0)
-            # Reorganize the data acording to sweep mode
-            dataProv = np.reshape(dataProv, (nSL, nPH, nRD))
-            dataTemp = dataProv*0
-            for ii in range(nPH):
-                dataTemp[:, ind[ii], :] = dataProv[:,  ii, :]
-            dataProv = dataTemp
-            # Check where is krd = 0
-            dataProv = dataProv[int(self.nPoints[2]/2), int(nPH/2), :]
-            indkrd0 = np.argmax(np.abs(dataProv))
-            if  indkrd0 < nRD/2-addRdPoints or indkrd0 > nRD/2+addRdPoints:
-                indkrd0 = int(nRD/2)
-
-            # Get individual images
-            dataFull = np.reshape(dataFull, (self.nScans, nSL, nPH, nRD))
-            dataFull = dataFull[:, :, :, indkrd0-int(self.nPoints[0]/2):indkrd0+int(self.nPoints[0]/2)]
-            dataTemp = dataFull*0
-            for ii in range(nPH):
-                dataTemp[:, :, ind[ii], :] = dataFull[:, :,  ii, :]
-            dataFull = dataTemp
-            imgFull = dataFull*0
-            for ii in range(self.nScans):
-                imgFull[ii, :, :, :] = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(dataFull[ii, :, :, :])))
-            self.mapVals['dataFull'] = dataFull
-            self.mapVals['imgFull'] = imgFull
-
-            # Average data
-            data = np.average(dataFull, axis=0)
-            data = np.reshape(data, (nSL, nPH, self.nPoints[0]))
-
-            # Do zero padding
-            dataTemp = np.zeros((self.nPoints[2], self.nPoints[1], self.nPoints[0]))
-            dataTemp = dataTemp+1j*dataTemp
-            dataTemp[0:nSL, :, :] = data
-            data = np.reshape(dataTemp, (1, self.nPoints[0]*self.nPoints[1]*self.nPoints[2]))
-
-            # Fix the position of the sample according to dfov
-            kMax = np.array(self.nPoints)/(2*np.array(self.fov))*np.array(self.axesEnable)
-            kRD = np.linspace(-kMax[0],kMax[0],num=self.nPoints[0],endpoint=False)
-        #        kPH = np.linspace(-kMax[1],kMax[1],num=nPoints[1],endpoint=False)
-            kSL = np.linspace(-kMax[2],kMax[2],num=self.nPoints[2],endpoint=False)
-            kPH = kPH[::-1]
-            kPH, kSL, kRD = np.meshgrid(kPH, kSL, kRD)
-            kRD = np.reshape(kRD, (1, self.nPoints[0]*self.nPoints[1]*self.nPoints[2]))
-            kPH = np.reshape(kPH, (1, self.nPoints[0]*self.nPoints[1]*self.nPoints[2]))
-            kSL = np.reshape(kSL, (1, self.nPoints[0]*self.nPoints[1]*self.nPoints[2]))
-            dPhase = np.exp(-2*np.pi*1j*(self.dfov[0]*kRD-self.dfov[1]*kPH+self.dfov[2]*kSL))
-            data = np.reshape(data*dPhase, (self.nPoints[2], self.nPoints[1], self.nPoints[0]))
-            self.mapVals['kSpace3D'] = data
-            img=np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(data)))
-            self.mapVals['image3D'] = img
-            data = np.reshape(data, (1, self.nPoints[0]*self.nPoints[1]*self.nPoints[2]))
-
-            # Create sampled data
-            kRD = np.reshape(kRD, (self.nPoints[0]*self.nPoints[1]*self.nPoints[2], 1))
-            kPH = np.reshape(kPH, (self.nPoints[0]*self.nPoints[1]*self.nPoints[2], 1))
-            kSL = np.reshape(kSL, (self.nPoints[0]*self.nPoints[1]*self.nPoints[2], 1))
-            data = np.reshape(data, (self.nPoints[0]*self.nPoints[1]*self.nPoints[2], 1))
-            self.mapVals['kMax'] = kMax
-            self.mapVals['sampled'] = np.concatenate((kRD, kPH, kSL, data), axis=1)
-            self.mapVals['sampledCartesian'] = self.mapVals['sampled']  # To sweep
-            data = np.reshape(data, (self.nPoints[2], self.nPoints[1], self.nPoints[0]))
-
-
-    def sequenceAnalysis(self, obj=''):
-        nPoints = self.mapVals['nPoints']
-        axesEnable = self.mapVals['axesEnable']
-
-        # Get axes in strings
-        axes = self.mapVals['axesOrientation']
-        axesDict = {'x':0, 'y':1, 'z':2}
-        axesKeys = list(axesDict.keys())
-        axesVals = list(axesDict.values())
-        axesStr = ['','','']
-        n = 0
-        for val in axes:
-            index = axesVals.index(val)
-            axesStr[n] = axesKeys[index]
-            n += 1
-
-        if (axesEnable[1] == 0 and axesEnable[2] == 0):
-            bw = self.mapVals['bw']*1e-3 # kHz
-            acqTime = self.mapVals['acqTime'] # ms
-            tVector = np.linspace(-acqTime/2, acqTime/2, nPoints[0])
-            sVector = self.mapVals['sampled'][:, 3]
-            fVector = np.linspace(-bw/2, bw/2, nPoints[0])
-            iVector = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(sVector)))
-
-            # Plots to show into the GUI
-            result1 = {}
-            result1['widget'] = 'curve'
-            result1['xData'] = tVector
-            result1['yData'] = [np.abs(sVector), np.real(sVector), np.imag(sVector)]
-            result1['xLabel'] = 'Time (ms)'
-            result1['yLabel'] = 'Signal amplitude (mV)'
-            result1['title'] = "Signal"
-            result1['legend'] = ['Magnitude', 'Real', 'Imaginary']
-            result1['row'] = 0
-            result1['col'] = 0
-
-            result2 = {}
-            result2['widget'] = 'curve'
-            result2['xData'] = fVector
-            result2['yData'] = [np.abs(iVector)]
-            result2['xLabel'] = 'Frequency (kHz)'
-            result2['yLabel'] = "Amplitude (a.u.)"
-            result2['title'] = "Spectrum"
-            result2['legend'] = ['Spectrum magnitude']
-            result2['row'] = 1
-            result2['col'] = 0
-
-            return([result1, result2])
-        else:
-            # Plot image
-            if self.demo:
-                image = np.random.randn(nPoints[2], nPoints[1], nPoints[0])
-            else:
-                image = np.abs(self.mapVals['image3D'])
-            image = image/np.max(np.reshape(image,-1))*100
-
-            # Image orientation
-            # Image orientation
-            if self.axesOrientation[2] == 2:  # Sagital
-                title = "Sagittal"
-                if self.axesOrientation[0] == 0 and self.axesOrientation[1] == 1:  #OK
-                    image = np.flip(image, axis=2)
-                    image = np.flip(image, axis=1)
-                    xLabel = "A | PHASE | P"
-                    yLabel = "I | READOUT | S"
-                else:
-                    image = np.transpose(image, (0, 2, 1))
-                    image = np.flip(image, axis=2)
-                    image = np.flip(image, axis=1)
-                    xLabel = "A | READOUT | P"
-                    yLabel = "I | PHASE | S"
-            if self.axesOrientation[2] == 1: # Coronal
-                title = "Coronal"
-                if self.axesOrientation[0] == 0 and self.axesOrientation[1] == 2: #OK
-                    image = np.flip(image, axis=2)
-                    image = np.flip(image, axis=1)
-                    image = np.flip(image, axis=0)
-                    xLabel = "L | PHASE | R"
-                    yLabel = "I | READOUT | S"
-                else:
-                    image = np.transpose(image, (0, 2, 1))
-                    image = np.flip(image, axis=2)
-                    xLabel = "L | READOUT | R"
-                    yLabel = "I | PHASE | S"
-            if self.axesOrientation[2] == 0:  # Transversal
-                title = "Transversal"
-                if self.axesOrientation[0] == 1 and self.axesOrientation[1] == 2:
-                    image = np.flip(image, axis=2)
-                    xLabel = "L | PHASE | R"
-                    yLabel = "P | READOUT | A"
-                else:  #OK
-                    image = np.transpose(image, (0, 2, 1))
-                    image = np.flip(image, axis=2)
-                    image = np.flip(image, axis=1)
-                    xLabel = "L | READOUT | R"
-                    yLabel = "P | PHASE | A"
-
-
-            result1 = {}
-            result1['widget'] = 'image'
-            result1['data'] = image
-            result1['xLabel'] = xLabel
-            result1['yLabel'] = yLabel
-            result1['title'] = title
-            result1['row'] = 0
-            result1['col'] = 0
-
-            result2 = {}
-            result2['widget'] = 'image'
-            if self.parFourierFraction==1:
-                result2['data'] = np.log10(np.abs(self.mapVals['kSpace3D']))
-            else:
-                result2['data'] = np.abs(self.mapVals['kSpace3D'])
-            result2['xLabel'] = "k%s"%axesStr[1]
-            result2['yLabel'] = "k%s"%axesStr[0]
-            result2['title'] = "k-Space"
-            result2['row'] = 0
-            result2['col'] = 1
-
-            # Reset rotation angle and dfov to zero
-            self.mapVals['angle'] = 0.0
-            self.mapVals['dfov'] = [0.0, 0.0, 0.0]
-            hw.dfov = [0.0, 0.0, 0.0]
-
-            # DICOM TAGS
-            # Image
-            imageDICOM = np.transpose(image, (0, 2, 1))
-            # If it is a 3d image
-            if len(imageDICOM.shape) > 2:
-                # Obtener dimensiones
-                slices, rows, columns = imageDICOM.shape
-                self.meta_data["Columns"] = columns
-                self.meta_data["Rows"] = rows
-                self.meta_data["NumberOfSlices"] = slices
-                self.meta_data["NumberOfFrames"] = slices
-            # if it is a 2d image
-            else:
-                # Obtener dimensiones
-                rows, columns = imageDICOM.shape
-                self.meta_data["Columns"] = columns
-                self.meta_data["Rows"] = rows
-                self.meta_data["NumberOfSlices"] = 1
-                self.meta_data["NumberOfFrames"] = 1
-            imgAbs = np.abs(imageDICOM)
-            imgFullAbs = np.abs(imageDICOM) * (2 ** 15 - 1) / np.amax(np.abs(imageDICOM))
-            x2 = np.amax(np.abs(imageDICOM))
-            imgFullInt = np.int16(np.abs(imgFullAbs))
-            imgFullInt = np.reshape(imgFullInt, (slices, rows, columns))
-            arr = np.zeros((slices, rows, columns), dtype=np.int16)
-            arr = imgFullInt
-            self.meta_data["PixelData"] = arr.tobytes()
-            self.meta_data["WindowWidth"] = 26373
-            self.meta_data["WindowCenter"] = 13194
-            # Sequence parameters
-            self.meta_data["RepetitionTime"] = self.mapVals['repetitionTime']
-            self.meta_data["EchoTime"] = self.mapVals['echoSpacing']
-            self.meta_data["EchoTrainLength"] = self.mapVals['etl']
-
-            # Add results into the output attribute (result1 must be the image to save in dicom)
-            self.output = [result1, result2]
-
-            # Save results
+    def sequenceAnalysis(self):
+        if self.error:
             self.saveRawData()
+            return []
+        data_over = np.reshape(self.mapVals['dataOver'], (self.mapVals['nScans'], -1))
+        print('数据维度：', data_over.shape)
+        data_average = np.average(data_over, axis=0).reshape((self.nSlices, -1))
+        data_full = []
+        for i in range(self.nSlices):
+            data_full.append(self.decimate(data_average[i], self.nPoints))
+        ksp = self.mapVals['ksp3d'] = np.reshape(data_full, (self.nSlices, self.nPoints, self.nPoints))
+        img = self.mapVals['img3d'] = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(ksp)))  # 重建
 
-            return self.output
-
-if __name__=="__main__":
-    seq = RAREProtocols()
-    seq.sequenceRun()
-    seq.sequenceAnalysis(obj='Standalone')
+        self.output = [{
+            'widget': 'image',
+            'data': np.abs(img),
+            'xLabel': '相位编码',
+            'yLabel': '频率编码',
+            'title': '幅值图',
+            'row': 0,
+            'col': 0
+        }, {
+            'widget': 'image',
+            'data': np.log10(np.abs(ksp)),
+            'xLabel': 'mV',
+            'yLabel': 'ms',
+            'title': 'k-Space',
+            'row': 0,
+            'col': 1
+        }]
+        self.saveRawData()
+        return self.output

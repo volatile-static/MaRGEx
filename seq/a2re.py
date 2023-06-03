@@ -65,8 +65,8 @@ class A2RE(blankSeq.MRIBLANKSEQ):
 
         acqTime = self.readoutTime - 2*self.readPadding  # 读出边距
         self.samplingPeriod = acqTime / self.nPoints
-        self.phaseGrads = np.linspace(-self.phaseAmp, self.phaseAmp, self.nPoints, False)  # 相位编码梯度
-        self.sliceGrads = np.linspace(-self.sliceAmp, self.sliceAmp, self.nSlices, False)  # 选层编码梯度
+        self.phaseGrads = np.linspace(-self.phaseAmp, self.phaseAmp, self.nPoints)  # 相位编码梯度
+        self.sliceGrads = np.linspace(-self.sliceAmp, self.sliceAmp, self.nSlices)  # 选层编码梯度
 
         echoSpacingMin = self.rfReTime + hw.blkTime + 2*self.phaseTime + 6*self.riseTime + self.readoutTime
         print('最小回波间隔: ', echoSpacingMin, 'μs')
@@ -80,10 +80,6 @@ class A2RE(blankSeq.MRIBLANKSEQ):
             print('ReadOut predephase梯度过大！')
             return 0
 
-        self.phaseAmpMax = self.phaseAmp * (self.nPoints - 1) / 2
-        if self.phaseAmpMax > 1:
-            print('相位编码过大！')
-            return 0
         self.error = False
 
 
@@ -151,7 +147,7 @@ class A2RE(blankSeq.MRIBLANKSEQ):
                     phase_amp=self.phaseGrads[j]
                 )
 
-        self.endSequence(self.nSlices * self.nShots * self.t_r + 2e6)
+        self.endSequence(self.nSlices * self.nPoints * self.t_r + 2e5)
         # --------------------- ↑序列结束↑ ---------------------
 
         if not self.floDict2Exp():  # 验证时序
@@ -173,16 +169,16 @@ class A2RE(blankSeq.MRIBLANKSEQ):
         
         # 对每次读出分别降采样
         data_full = self.decimate(self.mapVals['dataOver'], self.etl * self.nPoints * self.nSlices)
+        data_full = np.reshape(data_full, (self.nSlices, self.nPoints, self.etl, -1))
 
         # 对回波链取平均
-        data_raw = np.mean(np.reshape(data_full, (self.nSlices, self.nPoints, self.etl, -1)), 2)
-        
-        ksp = self.mapVals['ksp3d'] = np.reshape(data_raw, (self.nSlices, self.nPoints, self.nPoints))
+        ksp = self.mapVals['ksp3d'] = np.mean(data_full, 2)
         img = self.mapVals['img3d'] = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(ksp)))  # 重建
-        
+        abs_img = np.abs(img)
+
         self.output = [{
             'widget': 'image',
-            'data': np.concatenate((np.abs(img), np.angle(img))),
+            'data': np.concatenate((np.angle(img) / np.pi, abs_img/np.max(abs_img)*2 - 1)),
             'xLabel': '相位编码',
             'yLabel': '频率编码',
             'title': '幅值图与相位图',

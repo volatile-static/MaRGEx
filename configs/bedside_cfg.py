@@ -12,3 +12,6 @@ antenna_dict = {
     "膝": np.pi / (0.117 * 100), 
     "腕": np.pi / (0.055 * 100)
 }
+
+bash_path = "gnome-terminal"
+rp_ip_address = "192.168.1.103"

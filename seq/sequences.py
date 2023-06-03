@@ -5,6 +5,7 @@ Created on Thu June 2 2022
 @Summary: All sequences on the GUI must be here
 """
 
+import seq.a2re as a2re
 import seq.rare as rare
 import seq.rareProtocols as rareProtocols
 # import seq.haste as haste
@@ -34,6 +35,9 @@ import seq.rfopt as rfopt
 import seq.snr as snr
 import seq.T1SE as t1se
 
+class A2RE(a2re.A2RE):
+    def __init__(self): super(A2RE, self).__init__()
+    
 class SNR(snr.SNR):
     def __init__(self): super(SNR, self).__init__()
 
@@ -122,6 +126,7 @@ class Localizer(localizer.Localizer):
 Definition of default sequences
 """
 defaultsequences = {
+    'A2RE': A2RE(),
     'RARE': RARE(),
     'T1SE': T1SE(),
     # 'RARE Protocols': RAREProtocols(),

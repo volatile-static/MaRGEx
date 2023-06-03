@@ -1,14 +1,16 @@
+from cmath import phase
+from re import S
 import controller.experiment_gui as ex
 import numpy as np
 import seq.mriBlankSeq as blankSeq
 import configs.hw_config as hw
 
 
-class RARE(blankSeq.MRIBLANKSEQ):
+class A2RE(blankSeq.MRIBLANKSEQ):
     def __init__(self):
-        super(RARE, self).__init__()
+        super(A2RE, self).__init__()
         # Input the parameters
-        self.addParameter(key='seqName', string='3D RARE', val='RARE')
+        self.addParameter(key='seqName', string='A2RE', val='A2RE')
         
         self.addParameter(key='larmorFreq', string='中心频率 (MHz)', val=hw.larmorFreq, field='RF')
         self.addParameter(key='rfExAmp', string='90°功率', val=0.11, field='RF')
@@ -16,12 +18,11 @@ class RARE(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='rfExTime', string='RF excitation time (us)', val=50.0, field='RF')
         self.addParameter(key='rfReTime', string='RF refocus time (us)', val=50.0, field='RF')    
                 
-        self.addParameter(key='nScans', string='平均次数', val=1, field='IM')
         self.addParameter(key='nPoints', string='像素点数', val=128, field='IM')
         self.addParameter(key='nSlices', string='选层方向点数', val=4, field='IM')
-        self.addParameter(key='sliceAmp', string='选层编码步进 (o.u.)', val=0.001, field='IM')
-        self.addParameter(key='phaseAmp', string='相位编码步进 (o.u.)', val=0.001, field='IM')
-        self.addParameter(key='readAmp', string='读出梯度幅值 (o.u.)', val=0.1, field='IM')
+        self.addParameter(key='sliceAmp', string='选层编码幅值 (o.u.)', val=0.01, field='IM')
+        self.addParameter(key='phaseAmp', string='相位编码幅值 (o.u.)', val=0.1, field='IM')
+        self.addParameter(key='readAmp', string='频率编码幅值 (o.u.)', val=0.1, field='IM')
 
         self.addParameter(key='etl', string='回波链长度', val=4, field='SEQ')
         self.addParameter(key='echoSpacing', string='回波间隔 (ms)', val=5, field='SEQ')
@@ -35,18 +36,18 @@ class RARE(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='preEmphasisFactor', string='预加重比例', val=1.0, field='OTH')
 
     def sequenceInfo(self):
-        print("============ 3D RARE成像 ============")
-        print("我们通过相位编码步进值和持续时间来控制相位编码方向FOV，通过读出梯度值和采样间隔时间(ReadoutTime/nPoints)来控制频率编码方向FOV")
+        print("============ Averaging Acquisition with Relaxation Enhancement ============")
+        print("利用RARE 3D的回波链进行平均的SE序列")
 
     def sequenceTime(self):  # minutes
         self.sequenceAtributes()
-        return self.repetitionTime * self.nShots * self.nSlices * self.nScans / 6e4
+        return self.repetitionTime * self.nPoints * self.nSlices / 6e4
         
     def sequenceAtributes(self):
         self.error = True
         super().sequenceAtributes()  # 把mapVals里的键值对读进self里
 
-        read_points = self.nScans*self.nSlices*self.nPoints*self.nPoints*hw.oversamplingFactor
+        read_points = self.etl*self.nSlices*self.nPoints*self.nPoints*hw.oversamplingFactor
         print('采样深度: ', read_points)
         if read_points > hw.maxRdPoints:
             print('读出点数过多！')
@@ -60,14 +61,19 @@ class RARE(blankSeq.MRIBLANKSEQ):
         self.readoutTime *= 1e3  # μs
         self.t_r = self.repetitionTime * 1e3  # μs
         self.t_e = self.echoSpacing * 1e3  # μs
+        self.tau = self.t_e / 2  # μs
 
         acqTime = self.readoutTime - 2*self.readPadding  # 读出边距
         self.samplingPeriod = acqTime / self.nPoints
-        self.nShots = int(self.nPoints / self.etl)
-        if self.nPoints % self.etl != 0:
-            print('回波链未对齐！')
-            return 0
+        self.phaseGrads = np.linspace(-self.phaseAmp, self.phaseAmp, self.nPoints, False)  # 相位编码梯度
+        self.sliceGrads = np.linspace(-self.sliceAmp, self.sliceAmp, self.nSlices, False)  # 选层编码梯度
 
+        echoSpacingMin = self.rfReTime + hw.blkTime + 2*self.phaseTime + 6*self.riseTime + self.readoutTime
+        print('最小回波间隔: ', echoSpacingMin, 'μs')
+        if self.t_e < echoSpacingMin:
+            self.t_e = echoSpacingMin + 2
+            self.mapVals['echoSpacing'] = self.t_e / 1e3
+            
         # 计算ReadOut predephase梯度大小
         self.ROpreAmp = self.preEmphasisFactor * 0.5 * self.readAmp * (self.readoutTime + self.riseTime) / (self.phaseTime + self.riseTime)
         if np.abs(self.ROpreAmp) > 1:
@@ -102,49 +108,50 @@ class RARE(blankSeq.MRIBLANKSEQ):
                 shimming=self.shimming
             )
 
-        def shot(t_start, segment_idx, slice_amp):
-            self.rfRecPulse(t_start, self.rfExTime, self.rfExAmp, 0)  # 激发
+        def shot(t_start, slice_amp, phase_amp):
+            self.rfRecPulse(t_start, self.rfExTime, self.rfExAmp)  # 激发
+
             # 读出方向predephase
             t_start += hw.blkTime + self.rfExTime
             gradient(t_start, self.phaseTime, self.ROpreAmp, self.axes[0]) 
         
-            for echo_idx in range(self.etl):
-                phase_amp = (self.nPoints/2 - (self.etl*segment_idx + echo_idx)) * self.phaseAmp
-                tim = t_start + self.rfExTime/2 + self.t_e*(echo_idx + 1) 
+            t_start += self.tau - self.rfExTime/2
+            for i in range(self.etl):
+                t_refocus = t_start + self.t_e*i 
+                t_echo = t_refocus + self.tau
 
                 # Refocusing pulse
-                self.rfRecPulse(tim - self.t_e/2 - self.rfReTime/2, 
+                self.rfRecPulse(t_refocus - hw.blkTime - self.rfReTime/2, 
                                 self.rfReTime, self.rfReAmp, np.pi/2)
                 
-                # Slice and Phase encoding
-                tim -= self.readoutTime/2 + 3*self.riseTime + self.phaseTime
-                gradient(tim, self.phaseTime, phase_amp, self.axes[1])
-                gradient(tim, self.phaseTime, slice_amp, self.axes[2])
-                
                 # Readout
-                tim += self.phaseTime + 2 * self.riseTime
-                gradient(tim, self.readoutTime, self.readAmp, self.axes[0])
+                t_read = t_echo - self.readoutTime/2
+                gradient(t_read - self.riseTime, self.readoutTime, self.readAmp, self.axes[0])
+                self.rxGateSync(t_read + self.readPadding, acq_time)
 
-                tim += self.riseTime + self.readPadding
-                self.rxGateSync(tim, acq_time)
-
-                tim += acq_time - self.readPadding + self.riseTime
+                # Slice and Phase encoding
+                t_phase = t_read - 3*self.riseTime - self.phaseTime
+                gradient(t_phase, self.phaseTime, phase_amp, self.axes[1])
+                gradient(t_phase, self.phaseTime, slice_amp, self.axes[2])
+                
                 # phase and slice rewind, no spoil
-                gradient(tim, self.phaseTime, -phase_amp, self.axes[1])
-                gradient(tim, self.phaseTime, -slice_amp, self.axes[2])
+                t_rewind = t_read + self.readoutTime + self.riseTime + 1
+                gradient(t_rewind, self.phaseTime, -phase_amp, self.axes[1])
+                gradient(t_rewind, self.phaseTime, -slice_amp, self.axes[2])
 
         # --------------------- ↓序列开始↓ ---------------------
         tim = 20
         self.iniSequence(tim, self.shimming)
 
-        for i in range(self.nScans):
-            for j in range(self.nSlices):
-                slice_amp = (self.nSlices/2 - j) * self.sliceAmp
-                for k in range(self.nShots):  # 每次在相位编码方向上采ETL行
-                    t0 = 1e5 + ((i*self.nSlices + j)*self.nShots + k)*self.t_r
-                    shot(t_start=t0, segment_idx=k, slice_amp=slice_amp)
+        for i in range(self.nSlices):
+            for j in range(self.nPoints): 
+                shot(
+                    t_start=1e5 + (i*self.nPoints + j)*self.t_r, 
+                    slice_amp=self.sliceGrads[i], 
+                    phase_amp=self.phaseGrads[j]
+                )
 
-        self.endSequence(self.nScans * self.nSlices * self.nShots * self.t_r + 2e6)
+        self.endSequence(self.nSlices * self.nShots * self.t_r + 2e6)
         # --------------------- ↑序列结束↑ ---------------------
 
         if not self.floDict2Exp():  # 验证时序
@@ -163,26 +170,27 @@ class RARE(blankSeq.MRIBLANKSEQ):
         if self.error:
             self.saveRawData()
             return []
-        data_over = np.reshape(self.mapVals['dataOver'], (self.mapVals['nScans'], -1))
-        print('数据维度：', data_over.shape)
-        data_average = np.average(data_over, axis=0).reshape((self.nSlices, -1))
-        data_full = []
-        for i in range(self.nSlices):
-            data_full.append(self.decimate(data_average[i], self.nPoints))
-        ksp = self.mapVals['ksp3d'] = np.reshape(data_full, (self.nSlices, self.nPoints, self.nPoints))
-        img = self.mapVals['img3d'] = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(ksp)))  # 重建
+        
+        # 对每次读出分别降采样
+        data_full = self.decimate(self.mapVals['dataOver'], self.etl * self.nPoints * self.nSlices)
 
+        # 对回波链取平均
+        data_raw = np.mean(np.reshape(data_full, (self.nSlices, self.nPoints, self.etl, -1)), 2)
+        
+        ksp = self.mapVals['ksp3d'] = np.reshape(data_raw, (self.nSlices, self.nPoints, self.nPoints))
+        img = self.mapVals['img3d'] = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(ksp)))  # 重建
+        
         self.output = [{
             'widget': 'image',
-            'data': np.abs(img),
+            'data': np.concatenate((np.abs(img), np.angle(img))),
             'xLabel': '相位编码',
             'yLabel': '频率编码',
-            'title': '幅值图',
+            'title': '幅值图与相位图',
             'row': 0,
             'col': 0
         }, {
             'widget': 'image',
-            'data': np.log10(np.abs(ksp)),
+            'data': np.log(np.abs(ksp)),
             'xLabel': 'mV',
             'yLabel': 'ms',
             'title': 'k-Space',

@@ -15,24 +15,20 @@ class A2RE(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='rfExAmp', string='90°功率', val=0.11, field='RF')
         self.addParameter(key='rfReAmp', string='180°功率', val=0.23, field='RF')
         self.addParameter(key='rfExTime', string='RF excitation time (us)', val=50.0, field='RF')
-        self.addParameter(key='rfReTime', string='RF refocus time (us)', val=50.0, field='RF')
 
-        self.addParameter(key='axes', string='图像方位 [rd, ph, sl]', val=[0, 1, 2], field='IM')
-        self.addParameter(key='nPoints', string='图像尺寸 [rd, ph, sl]', val=[128, 128, 4], field='IM')
-        self.addParameter(key='voxel', string='体素尺寸 (mm)', val=[1.0, 1.0, 2.0], field='IM')
-        self.addParameter(key='sliceAmp', string='选层编码幅值 (o.u.)', val=0.01, field='IM')
-        self.addParameter(key='phaseAmp', string='相位编码幅值 (o.u.)', val=0.1, field='IM')
-        self.addParameter(key='readAmp', string='频率编码幅值 (o.u.)', val=0.1, field='IM')
+        self.addParameter(key='repetitionTime', string='TR (ms)', val=2000.0, field='IM')
+        self.addParameter(key='axes', string='方位 [rd, ph, sl]', val=[0, 1, 2], field='IM')
+        self.addParameter(key='nPoints', string='点数 [rd, ph, sl]', val=[128, 128, 4], field='IM')
+        self.addParameter(key='voxel', string='体素 (mm)', val=[1.0, 1.0, 2.0], field='IM')
 
         self.addParameter(key='etl', string='回波链长度', val=4, field='SEQ')
         self.addParameter(key='echoSpacing', string='回波间隔 (ms)', val=5, field='SEQ')
-        self.addParameter(key='repetitionTime', string='TR (ms)', val=2000.0, field='SEQ')
         self.addParameter(key='phaseTime', string='相位编码时长 (ms)', val=2, field='SEQ')
         self.addParameter(key='readoutTime', string='读出时长 (ms)', val=3.0, field='SEQ')
-        self.addParameter(key='readPadding', string='读出边距 (μs)', val=1.0, field='SEQ')
 
-        self.addParameter(key='shimming', string='线性匀场 [x,y,z]', val=[210.0, 210.0, 895.0], field='OTH')
-        self.addParameter(key='gFactor', string='梯度效率 [x,y,z]', val=[1.0, 1.0, 1.0], field='OTH')
+        self.addParameter(key='shimming', string='线性匀场 [x, y, z]', val=[210.0, 210.0, 895.0], field='OTH')
+        self.addParameter(key='gFactor', string='梯度效率 [x, y, z]', val=[1.0, 1.0, 1.0], field='OTH')
+        self.addParameter(key='readPadding', string='读出边距 (μs)', val=1.0, field='OTH')
 
     def sequenceInfo(self):
         print("============ Averaging Acquisition with Relaxation Enhancement ============")
@@ -64,11 +60,19 @@ class A2RE(blankSeq.MRIBLANKSEQ):
 
         acqTime = self.readoutTime - 2*self.readPadding  # 读出边距
         self.samplingPeriod = acqTime / self.nPoints[0]
-        self.phaseGrads = np.linspace(-self.phaseAmp, self.phaseAmp, self.nPoints[1])  # 相位编码梯度
-        self.sliceGrads = np.linspace(-self.sliceAmp, self.sliceAmp, self.nPoints[2])  # 选层编码梯度
+
+        if not np.product(self.voxel) * self.readoutTime > 0:  # 防止输入过程中出现0
+            return 0
+        self.readoutAmp = 2e6 * self.gFactor[self.axes[0]] / self.voxel[0] / hw.gammaB / self.readoutTime 
+        phAmp = 1e6 * self.gFactor[self.axes[1]] / self.voxel[1] / hw.gammaB / (self.phaseTime + self.riseTime)
+        slAmp = 1e6 * self.gFactor[self.axes[2]] / self.voxel[2] / hw.gammaB / (self.phaseTime + self.riseTime)
+        print('梯度幅值: ', self.readoutAmp, phAmp, slAmp)
+        self.phaseGrads = np.linspace(-phAmp, phAmp, self.nPoints[1])  # 相位编码梯度
+        self.sliceGrads = np.linspace(-slAmp, slAmp, self.nPoints[2])  # 选层编码梯度
         if self.nPoints[2] < 2:
             self.sliceGrads = np.array([0])
 
+        self.rfReTime = self.rfExTime
         echoSpacingMin = self.rfReTime + hw.blkTime + 2*self.phaseTime + 6*self.riseTime + self.readoutTime
         print('最小回波间隔: ', echoSpacingMin, 'μs')
         if self.t_e < echoSpacingMin:
@@ -76,7 +80,7 @@ class A2RE(blankSeq.MRIBLANKSEQ):
             self.mapVals['echoSpacing'] = self.t_e / 1e3
 
         # 计算ReadOut predephase梯度大小
-        self.ROpreAmp = self.readAmp*(self.readoutTime + self.riseTime)/(self.phaseTime + self.riseTime)/2
+        self.ROpreAmp = self.readoutAmp*(self.readoutTime + self.riseTime)/(self.phaseTime + self.riseTime)/2
         if np.abs(self.ROpreAmp) > 1:
             print('ReadOut predephase梯度过大！')
             return 0
@@ -122,7 +126,7 @@ class A2RE(blankSeq.MRIBLANKSEQ):
                 
                 # Readout
                 t_read = t_echo - self.readoutTime/2
-                gradient(t_read - self.riseTime, self.readoutTime, self.readAmp, self.axes[0])
+                gradient(t_read - self.riseTime, self.readoutTime, self.readoutAmp, self.axes[0])
                 self.rxGateSync(t_read + self.readPadding, acq_time)
 
                 # Slice and Phase encoding

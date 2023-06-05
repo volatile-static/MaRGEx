@@ -17,7 +17,9 @@ class A2RE(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='rfExTime', string='RF excitation time (us)', val=50.0, field='RF')
         self.addParameter(key='rfReTime', string='RF refocus time (us)', val=50.0, field='RF')
 
+        self.addParameter(key='axes', string='图像方位 [rd, ph, sl]', val=[0, 1, 2], field='IM')
         self.addParameter(key='nPoints', string='图像尺寸 [rd, ph, sl]', val=[128, 128, 4], field='IM')
+        self.addParameter(key='voxel', string='体素尺寸 (mm)', val=[1.0, 1.0, 2.0], field='IM')
         self.addParameter(key='sliceAmp', string='选层编码幅值 (o.u.)', val=0.01, field='IM')
         self.addParameter(key='phaseAmp', string='相位编码幅值 (o.u.)', val=0.1, field='IM')
         self.addParameter(key='readAmp', string='频率编码幅值 (o.u.)', val=0.1, field='IM')
@@ -30,7 +32,7 @@ class A2RE(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='readPadding', string='读出边距 (μs)', val=1.0, field='SEQ')
 
         self.addParameter(key='shimming', string='线性匀场 [x,y,z]', val=[210.0, 210.0, 895.0], field='OTH')
-        self.addParameter(key='axes', string='[读出，相位，选层]', val=[0, 1, 2], field='OTH')
+        self.addParameter(key='gFactor', string='梯度效率 [x,y,z]', val=[1.0, 1.0, 1.0], field='OTH')
 
     def sequenceInfo(self):
         print("============ Averaging Acquisition with Relaxation Enhancement ============")
@@ -64,6 +66,8 @@ class A2RE(blankSeq.MRIBLANKSEQ):
         self.samplingPeriod = acqTime / self.nPoints[0]
         self.phaseGrads = np.linspace(-self.phaseAmp, self.phaseAmp, self.nPoints[1])  # 相位编码梯度
         self.sliceGrads = np.linspace(-self.sliceAmp, self.sliceAmp, self.nPoints[2])  # 选层编码梯度
+        if self.nPoints[2] < 2:
+            self.sliceGrads = np.array([0])
 
         echoSpacingMin = self.rfReTime + hw.blkTime + 2*self.phaseTime + 6*self.riseTime + self.readoutTime
         print('最小回波间隔: ', echoSpacingMin, 'μs')
@@ -166,9 +170,8 @@ class A2RE(blankSeq.MRIBLANKSEQ):
         # 对每次读出分别降采样
         data_full = self.decimate(self.mapVals['dataOver'], self.etl * self.nPoints[2] * self.nPoints[1])
         data_full = np.reshape(data_full, (self.nPoints[2], self.nPoints[1], self.etl, -1))
-
-        # 对回波链取平均
-        ksp = self.mapVals['ksp3d'] = np.mean(data_full, 2)
+      
+        ksp = self.mapVals['ksp3d'] = np.mean(data_full, 2)  # 对回波链取平均
         img = self.mapVals['img3d'] = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(ksp)))  # 重建
         abs_img = np.abs(img)
 

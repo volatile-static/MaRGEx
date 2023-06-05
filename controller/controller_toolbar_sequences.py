@@ -12,7 +12,7 @@ from datetime import datetime
 
 import numpy as np
 from PyQt5 import QtCore
-from PyQt5.QtWidgets import QLabel, QFileDialog
+from PyQt5.QtWidgets import QLabel, QFileDialog, QMessageBox
 
 from controller.controller_plot3d import Plot3DController as Spectrum3DPlot
 from controller.controller_plot1d import Plot1DController as SpectrumPlot
@@ -162,7 +162,7 @@ class SequenceController(SequenceToolBar):
                                            y_label=item['yLabel'],
                                            title=item['title'])
                     self.main.figures_layout.addWidget(image, row=item['row'] + 1, col=item['col'])
-                    defaultsequences[self.seq_name].deleteOutput()
+                    # defaultsequences[self.seq_name].deleteOutput()
                 elif item['widget'] == 'curve':
                     self.plots.append(SpectrumPlot(x_data=item['xData'],
                                                    y_data=item['yData'],
@@ -311,19 +311,29 @@ class SequenceController(SequenceToolBar):
 
             # Set name to the label
             file_name = defaultsequences[self.seq_name].mapVals['fileName']
-            self.label.setText(file_name)
+            try:
+                self.label.setText(file_name)
+            except:
+                print('label not updated: ', file_name)
 
             # Add item to the history list
             self.main.history_list.current_output = str(datetime.now())[11:23]
             name = self.main.history_list.current_output + " | " + file_name
             self.main.history_list.addItem(name)
 
+            old_imgs = self.main.figures_layout.findChildren(Spectrum3DPlot)
             for plot_index in range(len(self.new_out)):
-                old_curves = self.plots[plot_index].plot_item.listDataItems()
-                for curveIndex in range(len(self.new_out[plot_index]['yData'])):
-                    x = self.new_out[plot_index]['xData']
-                    y = self.new_out[plot_index]['yData'][curveIndex]
-                    old_curves[curveIndex].setData(x, y)
+                if self.new_out[plot_index]['widget'] == 'image':
+                    try:
+                        old_imgs[plot_index].setImage(self.new_out[plot_index]['data'])
+                    except:
+                        self.new_run = True
+                else:
+                    old_curves = self.plots[plot_index].plot_item.listDataItems()
+                    for curveIndex in range(len(self.new_out[plot_index]['yData'])):
+                        x = self.new_out[plot_index]['xData']
+                        y = self.new_out[plot_index]['yData'][curveIndex]
+                        old_curves[curveIndex].setData(x, y)
 
             # Clear inputs
             defaultsequences[self.seq_name].resetMapVals()

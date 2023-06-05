@@ -154,9 +154,9 @@ class A2RE(blankSeq.MRIBLANKSEQ):
             return 0
 
         if not plotSeq:
+            print('开始扫描...')
             # Run the experiment and get data
             rxd, msgs = self.expt.run()
-            print(msgs)
             self.mapVals['dataOver'] = rxd['rx0']
 
             self.expt.__del__()
@@ -175,7 +175,7 @@ class A2RE(blankSeq.MRIBLANKSEQ):
         img = self.mapVals['img3d'] = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(ksp)))  # 重建
         abs_img = np.abs(img)
 
-        self.output = [{
+        self.output = self.out = [{
             'widget': 'image',
             'data': np.concatenate((abs_img/np.max(abs_img)*2 - 1, np.angle(img) / np.pi)),
             'xLabel': '相位编码',

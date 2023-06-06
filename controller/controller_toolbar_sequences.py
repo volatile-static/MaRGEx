@@ -12,7 +12,8 @@ from datetime import datetime
 
 import numpy as np
 from PyQt5 import QtCore
-from PyQt5.QtWidgets import QLabel, QFileDialog, QMessageBox
+from PyQt5.QtGui import QIcon
+from PyQt5.QtWidgets import QLabel, QFileDialog, QSystemTrayIcon
 
 from controller.controller_plot3d import Plot3DController as Spectrum3DPlot
 from controller.controller_plot1d import Plot1DController as SpectrumPlot
@@ -49,6 +50,7 @@ class SequenceController(SequenceToolBar):
         self.action_load_parameters.triggered.connect(self.loadParameters)
         self.action_save_parameters_cal.triggered.connect(self.saveParametersCalibration)
         self.main.toolbar_marcos.action_server.triggered.connect(self.serverConnected)
+        self.trayIco = QSystemTrayIcon(QIcon('resources/icons/M.png'), self.main)
 
     def bender(self):
         items = [self.main.protocol_inputs.item(index) for index in range(self.main.protocol_inputs.count())]
@@ -303,8 +305,11 @@ class SequenceController(SequenceToolBar):
 
         # Acquire while iterativeRun is True
         if not self.action_iterate.isChecked():
+            self.trayIco.show()
             # Create and execute selected sequence
             defaultsequences[self.seq_name].sequenceRun(0)
+            self.trayIco.showMessage(self.seq_name, '扫描完成！')
+            self.trayIco.hide()
 
             # Do sequence analysis and acquire de plots
             self.new_out = defaultsequences[self.seq_name].sequenceAnalysis()

@@ -58,6 +58,7 @@ class A2RE(blankSeq.MRIBLANKSEQ):
         self.t_e = self.echoSpacing * 1e3  # μs
         self.tau = self.t_e / 2  # μs
 
+        print('TE_eff: ', round((self.t_e * self.etl + self.tau) / 1e3), 'ms')
         acqTime = self.readoutTime - 2*self.readPadding  # 读出边距
         self.samplingPeriod = acqTime / self.nPoints[0]
 

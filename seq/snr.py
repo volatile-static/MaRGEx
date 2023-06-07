@@ -46,7 +46,7 @@ class SNR(blankSeq.MRIBLANKSEQ):
         repetitionTime = self.mapVals['repetitionTime']*1e-3
         return (repetitionTime*nScans/60)  # minutes, scanTime
 
-    def sequenceRun(self, plotSeq=0):
+    def sequenceRun(self, plotSeq=0, demo=False):
         # Create input parameters
         nScans = self.mapVals['nScans']
         larmorFreq = self.mapVals['larmorFreq']  # MHz

@@ -39,7 +39,6 @@ class A2RE(blankSeq.MRIBLANKSEQ):
         return self.repetitionTime * self.nPoints[1] * self.nPoints[2] / 6e4
 
     def sequenceAtributes(self):
-        self.error = True
         super().sequenceAtributes()  # 把mapVals里的键值对读进self里
 
         read_points = self.etl*np.product(self.nPoints)*hw.oversamplingFactor
@@ -91,13 +90,7 @@ class A2RE(blankSeq.MRIBLANKSEQ):
             print('ReadOut predephase梯度过大！')
             return 0
 
-        self.error = False
-
-    def sequenceRun(self, plotSeq=0):
-        if self.error:
-            return 0
-        self.error = True
-
+    def sequenceRun(self, plotSeq=0, demo=False):
         self.expt = ex.Experiment(lo_freq=self.mapVals['larmorFreq'], rx_t=self.samplingPeriod)
         self.mapVals['samplingRate'] = self.expt.getSamplingRate()  # 采样间隔
         acq_time = self.mapVals['samplingRate'] * self.nPoints[0]
@@ -170,13 +163,9 @@ class A2RE(blankSeq.MRIBLANKSEQ):
             self.mapVals['dataOver'] = rxd['rx0']
 
             self.expt.__del__()
-        self.error = False
+        return True
 
     def sequenceAnalysis(self):
-        if self.error:
-            self.saveRawData()
-            return []
-
         # 对每次读出分别降采样
         data_full = self.decimate(self.mapVals['dataOver'], self.etl * self.nPoints[2] * self.nPoints[1])
         data_full = np.reshape(data_full, (self.nPoints[2], self.nPoints[1], self.etl, -1))

@@ -519,8 +519,8 @@ class MRIBLANKSEQ:
         """
         # Generate instructions taking into account the cic filter delay and addRdPoints
         samplingRate = self.expt.getSamplingRate() / hw.oversamplingFactor # us
-        t0 = tStart - (hw.addRdPoints * hw.oversamplingFactor - hw.cic_delay_points) * samplingRate # us
-        t1 = tStart + (hw.addRdPoints * hw.oversamplingFactor + hw.cic_delay_points) * samplingRate + gateTime # us
+        t0 = tStart - (hw.addRdPoints * hw.oversamplingFactor - hw.cicDelayPoints) * samplingRate # us
+        t1 = tStart + (hw.addRdPoints * hw.oversamplingFactor + hw.cicDelayPoints) * samplingRate + gateTime # us
         self.flo_dict['rx%i' % channel][0] = \
             np.concatenate((self.flo_dict['rx%i' % channel][0], np.array([t0, t1])), axis=0)
         self.flo_dict['rx%i' % channel][1] = \

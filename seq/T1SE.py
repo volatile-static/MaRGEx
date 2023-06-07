@@ -34,7 +34,7 @@ class T1SE(blankSeq.MRIBLANKSEQ):
     def sequenceTime(self):  # minutes, scanTime
         return self.mapVals['repetitionTime'] * self.mapVals['nPoints'] / 6e4
 
-    def sequenceRun(self, plotSeq=0):
+    def sequenceRun(self, plotSeq=0, demo=False):
         # 读取输入的参数
         larmorFreq = self.mapVals['larmorFreq']  # MHz
         rfExAmp = self.mapVals['rfExAmp']

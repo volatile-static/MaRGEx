@@ -54,7 +54,7 @@ class Larmor(blankSeq.MRIBLANKSEQ):
         repetitionTime = self.mapVals['repetitionTime'] * 1e-3
         return (repetitionTime * nScans / 60)  # minutes, scanTime
 
-    def sequenceRun(self, plotSeq=0):
+    def sequenceRun(self, plotSeq=0, demo=False):
         init_gpa = False  # Starts the gpa
 
         # Create the inputs automatically. For some reason it only works if there is a few code later...

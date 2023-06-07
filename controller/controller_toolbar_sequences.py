@@ -301,6 +301,7 @@ class SequenceController(SequenceToolBar):
         @email: josalggui@i3m.upv.es
         @Summary: executed when you repeat some calibration sequences
         """
+        img_widgets = self.main.figures_layout.findChildren(Spectrum3DPlot)
         # Acquire while iterativeRun is True
         if not self.action_iterate.isChecked():
             self.trayIco.show()
@@ -324,11 +325,10 @@ class SequenceController(SequenceToolBar):
             item_name = str(datetime.now())[11:23] + " | " + file_name
             self.main.history_list.addItem(item_name)
 
-            old_imgs = self.main.figures_layout.findChildren(Spectrum3DPlot)
             for plot_index in range(len(self.new_out)):
                 if self.new_out[plot_index]['widget'] == 'image':
                     try:
-                        old_imgs[plot_index].setImage(self.new_out[plot_index]['data'])
+                        img_widgets[plot_index].setImage(self.new_out[plot_index]['data'])
                     except:
                         self.new_run = True
                 else:
@@ -372,11 +372,20 @@ class SequenceController(SequenceToolBar):
                 self.main.history_list.addItem(item_name)
 
                 for plot_index in range(len(self.new_out)):
-                    old_curves = self.plots[plot_index].plot_item.listDataItems()
-                    for curveIndex in range(len(self.new_out[plot_index]['yData'])):
-                        x = self.new_out[plot_index]['xData']
-                        y = self.new_out[plot_index]['yData'][curveIndex]
-                        old_curves[curveIndex].setData(x, y)
+                    if self.new_out[plot_index]['widget'] == 'image':
+                        old_img = img_widgets[plot_index].image
+                        img2 = np.array([old_img, self.new_out[plot_index]['data']])
+                        print(img2.shape)
+                        try:
+                            img_widgets[plot_index].setImage(np.mean(img2, axis=0))
+                        except:
+                            self.new_run = True
+                    else:
+                        old_curves = self.plots[plot_index].plot_item.listDataItems()
+                        for curveIndex in range(len(self.new_out[plot_index]['yData'])):
+                            x = self.new_out[plot_index]['xData']
+                            y = self.new_out[plot_index]['yData'][curveIndex]
+                            old_curves[curveIndex].setData(x, y)
 
                 # Clear inputs
                 defaultsequences[self.seq_name].resetMapVals()

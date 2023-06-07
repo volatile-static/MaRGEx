@@ -73,9 +73,10 @@ class GRE3D(blankSeq.MRIBLANKSEQ):
             print('相位编码过大！')
             return 0
         self.error = False
+        return True
 
 
-    def sequenceRun(self, plot_seq=0):
+    def sequenceRun(self, plot_seq=0, demo=False):
         if self.error:
             return 0
         self.error = True

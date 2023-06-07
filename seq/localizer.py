@@ -17,9 +17,9 @@ for char in path:
         sys.path.append(path[0:ii + 1] + 'marcos_client')
     ii += 1
 # ******************************************************************************
-import seq.rare as rare
+import seq.a2re as rare
 
-class Localizer(rare.RARE):
+class Localizer(rare.A2RE):
     def __init__(self):
         super(Localizer, self).__init__()
         self.addParameter(key='planes', string='Planes (sag, cor, tra)', val=[1, 1, 1], field='OTH')

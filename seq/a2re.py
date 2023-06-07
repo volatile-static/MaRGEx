@@ -17,7 +17,7 @@ class A2RE(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='rfExTime', string='RF excitation time (us)', val=50.0, field='RF')
 
         self.addParameter(key='repetitionTime', string='TR (ms)', val=2000.0, field='IM')
-        self.addParameter(key='axes', string='方位 [rd, ph, sl]', val=[0, 1, 2], field='IM')
+        self.addParameter(key='axesOrientation', string='方位 [rd, ph, sl]', val=[0, 1, 2], field='IM')
         self.addParameter(key='nPoints', string='点数 [rd, ph, sl]', val=[128, 128, 4], field='IM')
         self.addParameter(key='voxel', string='体素 (mm)', val=[1.0, 1.0, 2.0], field='IM')
 
@@ -57,6 +57,11 @@ class A2RE(blankSeq.MRIBLANKSEQ):
         self.t_r = self.repetitionTime * 1e3  # μs
         self.t_e = self.echoSpacing * 1e3  # μs
         self.tau = self.t_e / 2  # μs
+        self.axes = {
+            'rd': self.axesOrientation[0],
+            'ph': self.axesOrientation[1],
+            'sl': self.axesOrientation[2]
+        }
 
         print('TE_eff: ', round((self.t_e * self.etl + self.tau) / 1e3), 'ms')
         acqTime = self.readoutTime - 2*self.readPadding  # 读出边距
@@ -64,9 +69,9 @@ class A2RE(blankSeq.MRIBLANKSEQ):
 
         if not np.product(self.voxel) * self.readoutTime > 0:  # 防止输入过程中出现0
             return 0
-        self.readoutAmp = 2e6 * self.gFactor[self.axes[0]] / self.voxel[0] / hw.gammaB / self.readoutTime 
-        phAmp = 1e6 * self.gFactor[self.axes[1]] / self.voxel[1] / hw.gammaB / (self.phaseTime + self.riseTime)
-        slAmp = 1e6 * self.gFactor[self.axes[2]] / self.voxel[2] / hw.gammaB / (self.phaseTime + self.riseTime)
+        self.readoutAmp = 2e6 * self.gFactor[self.axes['rd']] / self.voxel[0] / hw.gammaB / self.readoutTime 
+        phAmp = 1e6 * self.gFactor[self.axes['ph']] / self.voxel[1] / hw.gammaB / (self.phaseTime + self.riseTime)
+        slAmp = 1e6 * self.gFactor[self.axes['sl']] / self.voxel[2] / hw.gammaB / (self.phaseTime + self.riseTime)
         print('梯度幅值: ', self.readoutAmp, phAmp, slAmp)
         self.phaseGrads = np.linspace(-phAmp, phAmp, self.nPoints[1])  # 相位编码梯度
         self.sliceGrads = np.linspace(-slAmp, slAmp, self.nPoints[2])  # 选层编码梯度
@@ -114,7 +119,7 @@ class A2RE(blankSeq.MRIBLANKSEQ):
 
             # 读出方向predephase
             t_start += hw.blkTime + self.rfExTime
-            gradient(t_start, self.phaseTime, self.ROpreAmp, self.axes[0]) 
+            gradient(t_start, self.phaseTime, self.ROpreAmp, self.axes['rd']) 
         
             t_start += self.tau - self.rfExTime/2
             for i in range(self.etl):
@@ -127,18 +132,18 @@ class A2RE(blankSeq.MRIBLANKSEQ):
                 
                 # Readout
                 t_read = t_echo - self.readoutTime/2
-                gradient(t_read - self.riseTime, self.readoutTime, self.readoutAmp, self.axes[0])
+                gradient(t_read - self.riseTime, self.readoutTime, self.readoutAmp, self.axes['rd'])
                 self.rxGateSync(t_read + self.readPadding, acq_time)
 
                 # Slice and Phase encoding
                 t_phase = t_read - 3*self.riseTime - self.phaseTime
-                gradient(t_phase, self.phaseTime, phase_amp, self.axes[1])
-                gradient(t_phase, self.phaseTime, slice_amp, self.axes[2])
+                gradient(t_phase, self.phaseTime, phase_amp, self.axes['ph'])
+                gradient(t_phase, self.phaseTime, slice_amp, self.axes['sl'])
 
                 # phase and slice rewind, no spoil
                 t_rewind = t_read + self.readoutTime + self.riseTime + 1
-                gradient(t_rewind, self.phaseTime, -phase_amp, self.axes[1])
-                gradient(t_rewind, self.phaseTime, -slice_amp, self.axes[2])
+                gradient(t_rewind, self.phaseTime, -phase_amp, self.axes['ph'])
+                gradient(t_rewind, self.phaseTime, -slice_amp, self.axes['sl'])
 
         # --------------------- ↓序列开始↓ ---------------------
         tim = 20

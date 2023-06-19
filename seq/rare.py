@@ -81,7 +81,7 @@ class RARE(blankSeq.MRIBLANKSEQ):
         self.error = False
 
 
-    def sequenceRun(self, plotSeq=0):
+    def sequenceRun(self, plotSeq=0, demo=False):
         if self.error:
             return 0
         self.error = True
@@ -158,6 +158,7 @@ class RARE(blankSeq.MRIBLANKSEQ):
 
             self.expt.__del__()
         self.error = False
+        return True
 
     def sequenceAnalysis(self):
         if self.error:
@@ -172,7 +173,7 @@ class RARE(blankSeq.MRIBLANKSEQ):
         ksp = self.mapVals['ksp3d'] = np.reshape(data_full, (self.nSlices, self.nPoints, self.nPoints))
         img = self.mapVals['img3d'] = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(ksp)))  # 重建
 
-        self.output = [{
+        self.output = self.out = [{
             'widget': 'image',
             'data': np.abs(img),
             'xLabel': '相位编码',

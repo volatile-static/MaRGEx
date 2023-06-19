@@ -56,7 +56,7 @@ class GRE3D(blankSeq.MRIBLANKSEQ):
         repetitionTime = self.mapVals['repetitionTime']
         return(nPoints[1]*nPoints[2]*repetitionTime*1e-3*nScans/60)  # minutes, scanTime
 
-    def sequenceRun(self, plotSeq):
+    def sequenceRun(self, plotSeq, demo=False):
         demo = False
         init_gpa=False, # Starts the gpa
         nScans = self.mapVals['nScans'] # NEX
@@ -462,6 +462,7 @@ class GRE3D(blankSeq.MRIBLANKSEQ):
             self.mapVals['kMax'] = kMax
             self.mapVals['sampled'] = np.concatenate((kRD, kPH, kSL, data), axis=1)
             data = np.reshape(data, (nPoints[2], nPoints[1], nPoints[0]))
+        return True
 
     def sequenceAnalysis(self, obj=''):
         self.saveRawData()

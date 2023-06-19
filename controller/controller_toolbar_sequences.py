@@ -375,7 +375,6 @@ class SequenceController(SequenceToolBar):
                     if self.new_out[plot_index]['widget'] == 'image':
                         old_img = img_widgets[plot_index].image
                         img2 = np.array([old_img, self.new_out[plot_index]['data']])
-                        print(img2.shape)
                         try:
                             img_widgets[plot_index].setImage(np.mean(img2, axis=0))
                         except:

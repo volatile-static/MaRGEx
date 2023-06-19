@@ -130,7 +130,7 @@ class GRE3D(blankSeq.MRIBLANKSEQ):
 
                     # slice and spoil
                     tim += acq_time - self.readPadding + self.riseTime + self.spoilDelay
-                    gradient(tim, self.phaseTime, self.phaseAmpMax*uniform(-1, 1), self.axes[2])
+                    # gradient(tim, self.phaseTime, self.phaseAmpMax*uniform(-1, 1), self.axes[2])
                     # phase rewind
                     gradient(tim, self.phaseTime, -phase_amp, self.axes[1])
 
@@ -147,6 +147,7 @@ class GRE3D(blankSeq.MRIBLANKSEQ):
 
         self.expt.__del__()
         self.error = False
+        return True
 
     def sequenceAnalysis(self):
         if self.error:

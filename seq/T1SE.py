@@ -171,6 +171,7 @@ class T1SE(blankSeq.MRIBLANKSEQ):
             self.mapVals['img'] = img
 
         self.expt.__del__()
+        return True
 
     def sequenceAnalysis(self, obj=''):
         self.saveRawData()

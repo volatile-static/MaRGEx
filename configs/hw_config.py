@@ -23,8 +23,8 @@ fov = [20.0, 20.0, 20.0]
 dfov = [0.0, 0.0, 0.0]
 rp_version = "rp-122"
 
-from configs import tabletop_cfg as cfg
-# from configs import bedside_cfg as cfg
+# from configs import tabletop_cfg as cfg
+from configs import bedside_cfg as cfg
 
 bash_path = cfg.bash_path
 rp_ip_address = cfg.rp_ip_address

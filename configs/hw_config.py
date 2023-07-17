@@ -24,7 +24,8 @@ dfov = [0.0, 0.0, 0.0]
 rp_version = "rp-122"
 
 # from configs import tabletop_cfg as cfg
-from configs import bedside_cfg as cfg
+# from configs import bedside_cfg as cfg
+from configs import superconductor_cfg as cfg
 
 bash_path = cfg.bash_path
 rp_ip_address = cfg.rp_ip_address
@@ -37,3 +38,4 @@ gradDelay = cfg.gradDelay # Gradient amplifier delay (us)
 antenna_dict = cfg.antenna_dict
 deadTime = cfg.deadTime
 adcFactor = cfg.adcFactor
+gateActiveLow = cfg.gateActiveLow

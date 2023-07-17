@@ -43,7 +43,7 @@ class GRE2D(blankSeq.MRIBLANKSEQ):
             print("激发功率：", self.mapVals['rfExAmp'], " (a.u.)")
         return self.mapVals['repetitionTime'] * self.mapVals['nPoints'] * self.mapVals['nScans'] / 6e4
 
-    def sequenceRun(self, plot_seq=0):
+    def sequenceRun(self, plot_seq=0, demo=False):
         print('扫描用时：', self.sequenceTime())
 
         num_points = self.mapVals['nPoints']
@@ -133,6 +133,7 @@ class GRE2D(blankSeq.MRIBLANKSEQ):
             self.mapVals['dataOver'] = rxd['rx0'] * hw.adcFactor
 
         self.expt.__del__()
+        return True
 
     def sequenceAnalysis(self):
         num_points = self.mapVals['nPoints']
@@ -142,12 +143,11 @@ class GRE2D(blankSeq.MRIBLANKSEQ):
         data_full = self.decimate(data_average, num_points)
         ksp = self.mapVals['ksp'] = np.reshape(data_full, (num_points, num_points))
         self.mapVals['img'] = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(ksp)))  # 重建
-        self.saveRawData()
-
+   
         img = np.reshape(self.mapVals['img'], (1, num_points, num_points))
         ksp = np.reshape(ksp, (1, num_points, num_points))
 
-        return [{
+        self.output = self.out = [{
             'widget': 'image',
             'data': np.abs(img),
             'xLabel': '相位编码',
@@ -164,3 +164,5 @@ class GRE2D(blankSeq.MRIBLANKSEQ):
             'row': 0,
             'col': 1
         }]
+        self.saveRawData()
+        return self.output

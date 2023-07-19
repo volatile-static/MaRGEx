@@ -469,7 +469,7 @@ class MRIBLANKSEQ:
         hanning = 0.5 * (1 + np.cos(2 * np.pi * tx / nZeros))
         txAmp = rfAmplitude * np.exp(1j * rfPhase) * hanning * np.abs(np.sinc(tx))
         txGateTime = np.array([tStart, tStart + hw.blkTime + rfTime])
-        txGateAmp = np.array([1, 0])
+        txGateAmp = np.array([1, 0]) ^ hw.gateActiveLow
         self.flo_dict['tx0'][0] = np.concatenate((self.flo_dict['tx0'][0], txTime), axis=0)
         self.flo_dict['tx0'][1] = np.concatenate((self.flo_dict['tx0'][1], txAmp), axis=0)
         self.flo_dict['ttl0'][0] = np.concatenate((self.flo_dict['ttl0'][0], txGateTime), axis=0)
@@ -484,7 +484,7 @@ class MRIBLANKSEQ:
         txTime = np.array([tStart + hw.blkTime, tStart + hw.blkTime + rfTime])
         txAmp = np.array([rfAmplitude * np.exp(1j * rfPhase), 0.])
         txGateTime = np.array([tStart, tStart + hw.blkTime + rfTime])
-        txGateAmp = np.array([1, 0])
+        txGateAmp = np.array([1, 0]) ^ hw.gateActiveLow
         self.flo_dict['tx%i' % channel][0] = np.concatenate((self.flo_dict['tx%i' % channel][0], txTime), axis=0)
         self.flo_dict['tx%i' % channel][1] = np.concatenate((self.flo_dict['tx%i' % channel][1], txAmp), axis=0)
         self.flo_dict['ttl0'][0] = np.concatenate((self.flo_dict['ttl0'][0], txGateTime), axis=0)
@@ -654,7 +654,7 @@ class MRIBLANKSEQ:
         self.flo_dict['tx1'][0] = np.concatenate((self.flo_dict['tx1'][0], np.array([tEnd])), axis=0)
         self.flo_dict['tx1'][1] = np.concatenate((self.flo_dict['tx1'][1], np.array([0])), axis=0)
         self.flo_dict['ttl0'][0] = np.concatenate((self.flo_dict['ttl0'][0], np.array([tEnd])), axis=0)
-        self.flo_dict['ttl0'][1] = np.concatenate((self.flo_dict['ttl0'][1], np.array([0])), axis=0)
+        self.flo_dict['ttl0'][1] = np.concatenate((self.flo_dict['ttl0'][1], np.array([0]) ^ hw.gateActiveLow), axis=0)
         self.flo_dict['ttl1'][0] = np.concatenate((self.flo_dict['ttl1'][0], np.array([tEnd])), axis=0)
         self.flo_dict['ttl1'][1] = np.concatenate((self.flo_dict['ttl1'][1], np.array([0])), axis=0)
 
@@ -674,7 +674,7 @@ class MRIBLANKSEQ:
         self.flo_dict['tx1'][0] = np.array([t0])
         self.flo_dict['tx1'][1] = np.array([0])
         self.flo_dict['ttl0'][0] = np.array([t0])
-        self.flo_dict['ttl0'][1] = np.array([0])
+        self.flo_dict['ttl0'][1] = np.array([0]) ^ hw.gateActiveLow
         self.flo_dict['ttl1'][0] = np.array([t0])
         self.flo_dict['ttl1'][1] = np.array([0])
 

@@ -10,7 +10,7 @@ import numpy as np
 import configs.hw_config as hw
 from datetime import date, datetime
 from scipy.io import savemat, loadmat
-import experiment as ex
+import controller.experiment_gui as ex
 import scipy.signal as sig
 import csv
 import matplotlib.pyplot as plt
@@ -597,8 +597,8 @@ class MRIBLANKSEQ:
         txGateAmp = np.array([1, 0])
         self.flo_dict['tx0'][0] = np.concatenate((self.flo_dict['tx0'][0], txTime), axis=0)
         self.flo_dict['tx0'][1] = np.concatenate((self.flo_dict['tx0'][1], txAmp), axis=0)
-        self.flo_dict['ttl0' % rxChannel][0] = np.concatenate((self.flo_dict['ttl0' % rxChannel][0], txGateTime), axis=0)
-        self.flo_dict['ttl0' % rxChannel][1] = np.concatenate((self.flo_dict['ttl0' % rxChannel][1], txGateAmp), axis=0)
+        self.flo_dict['ttl0'][0] = np.concatenate((self.flo_dict['ttl0'][0], txGateTime), axis=0)
+        self.flo_dict['ttl0'][1] = np.concatenate((self.flo_dict['ttl0'][1], txGateAmp), axis=0)
 
     def rfRecPulse(self, tStart, rfTime, rfAmplitude, rfPhase=0, channel=0):
         """"
@@ -647,8 +647,8 @@ class MRIBLANKSEQ:
             samplingRate = self.expt.getSamplingRate() / hw.oversamplingFactor # us
         except:
             samplingRate = self.mapVals['samplingPeriod']*1e3 / hw.oversamplingFactor
-        t0 = tStart - (hw.addRdPoints * hw.oversamplingFactor - hw.cic_delay_points) * samplingRate # us
-        t1 = tStart + (hw.addRdPoints * hw.oversamplingFactor + hw.cic_delay_points) * samplingRate + gateTime # us
+        t0 = tStart - (hw.addRdPoints * hw.oversamplingFactor - hw.cicDelayPoints) * samplingRate # us
+        t1 = tStart + (hw.addRdPoints * hw.oversamplingFactor + hw.cicDelayPoints) * samplingRate + gateTime # us
         self.flo_dict['rx%i' % channel][0] = \
             np.concatenate((self.flo_dict['rx%i' % channel][0], np.array([t0, t1])), axis=0)
         self.flo_dict['rx%i' % channel][1] = \

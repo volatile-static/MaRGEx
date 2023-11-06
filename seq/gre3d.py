@@ -33,7 +33,7 @@ class GRE3D(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
         self.addParameter(key='freqOffset', string='Larmor frequency offset (kHz)', val=0.0, units=units.kHz,
                           field='RF')
-        self.addParameter(key='rfExFA', string='Excitation flip angle (º)', val=90, field='RF')
+        self.addParameter(key='rfExFA', string='Excitation flip angle (°)', val=90, field='RF')
         self.addParameter(key='rfExTime', string='RF excitation time (us)', val=30.0, units=units.us, field='RF')
         self.addParameter(key='echo_time', string='Echo time (ms)', val=4.0, units=units.ms, field='SEQ')
         self.addParameter(key='repetition_time', string='Repetition time (ms)', val=500., units=units.ms, field='SEQ')
@@ -41,7 +41,7 @@ class GRE3D(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM',
                           tip="Position of the gradient isocenter")
         self.addParameter(key='nPoints', string='nPoints (rd, ph, sl)', val=[60, 60, 1], field='IM')
-        self.addParameter(key='angle', string='Angle (º)', val=0.0, field='IM')
+        self.addParameter(key='angle', string='Angle (°)', val=0.0, field='IM')
         self.addParameter(key='rotationAxis', string='Rotation axis', val=[0, 0, 1], field='IM')
         self.addParameter(key='acq_time', string='Acquisition time (ms)', val=1.0, units=units.ms, field='SEQ')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[0, 1, 2], field='IM',

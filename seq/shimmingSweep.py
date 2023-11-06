@@ -30,8 +30,8 @@ class ShimmingSweep(blankSeq.MRIBLANKSEQ):
         # Input the parameters
         self.addParameter(key='seqName', string='ShimmingSweepInfo', val='Shimming')
         self.addParameter(key='freqOffset', string='Larmor frequency offset (kHz)', val=0.0, units=units.kHz, field='RF')
-        self.addParameter(key='rfExFA', string='Excitation flip angle (º)', val=90.0, field='RF')
-        self.addParameter(key='rfReFA', string='Refocusing flip angle (º)', val=180.0, field='RF')
+        self.addParameter(key='rfExFA', string='Excitation flip angle (°)', val=90.0, field='RF')
+        self.addParameter(key='rfReFA', string='Refocusing flip angle (°)', val=180.0, field='RF')
         self.addParameter(key='rfExTime', string='RF excitation time (us)', val=30.0, units=units.us, field='RF')
         self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=60.0, units=units.us, field='RF')
         self.addParameter(key='echoTime', string='Echo time (ms)', val=10., units=units.ms, field='SEQ')

@@ -48,7 +48,7 @@ class GRE1D(blankSeq.MRIBLANKSEQ):
         self.demo = None
         self.addParameter(key='seqName', string='GRE1DInfo', val='GRE1D')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='SEQ')
-        self.addParameter(key='rfExFA', string='Excitation flip angle (º)', val=90.0, field='RF')
+        self.addParameter(key='rfExFA', string='Excitation flip angle (°)', val=90.0, field='RF')
         self.addParameter(key='rfExTime', string='RF excitation time (us)', val=30.0, field='RF', units=units.us)
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=1000., field='SEQ', units=units.ms)
         self.addParameter(key='echoTime', string='Echo time (ms)', val=10.0, field='SEQ', units=units.ms)

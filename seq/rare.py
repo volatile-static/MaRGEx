@@ -36,8 +36,8 @@ class RARE(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='seqName', string='RAREInfo', val='RARE')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
         self.addParameter(key='freqOffset', string='Larmor frequency offset (kHz)', val=0.0, units=units.kHz, field='RF')
-        self.addParameter(key='rfExFA', string='Excitation flip angle (º)', val=90, field='RF')
-        self.addParameter(key='rfReFA', string='Refocusing flip angle (º)', val=180, field='RF')
+        self.addParameter(key='rfExFA', string='Excitation flip angle (°)', val=90, field='RF')
+        self.addParameter(key='rfReFA', string='Refocusing flip angle (°)', val=180, field='RF')
         self.addParameter(key='rfExTime', string='RF excitation time (us)', val=35.0, units=units.us, field='RF')
         self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=70.0, units=units.us, field='RF')
         self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=20.0, units=units.ms, field='SEQ')
@@ -47,7 +47,7 @@ class RARE(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='fov', string='FOV[x,y,z] (cm)', val=[15.0, 15.0, 15.0], units=units.cm, field='IM')
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM', tip="Position of the gradient isocenter")
         self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[40, 1, 1], field='IM')
-        self.addParameter(key='angle', string='Angle (º)', val=0.0, field='IM')
+        self.addParameter(key='angle', string='Angle (°)', val=0.0, field='IM')
         self.addParameter(key='rotationAxis', string='Rotation axis', val=[0, 0, 1], field='IM')
         self.addParameter(key='etl', string='Echo train length', val=5, field='SEQ')
         self.addParameter(key='acqTime', string='Acquisition time (ms)', val=2.0, units=units.ms, field='SEQ')
@@ -58,7 +58,7 @@ class RARE(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='rdDephTime', string='Rd dephasing time (ms)', val=1.0, units=units.ms, field='OTH')
         self.addParameter(key='phGradTime', string='Ph gradient time (ms)', val=1.0, units=units.ms, field='OTH')
         self.addParameter(key='rdPreemphasis', string='Rd preemphasis', val=1.0, field='OTH')
-        self.addParameter(key='rfPhase', string='RF phase (º)', val=0.0, field='OTH')
+        self.addParameter(key='rfPhase', string='RF phase (°)', val=0.0, field='OTH')
         self.addParameter(key='dummyPulses', string='Dummy pulses', val=1, field='SEQ', tip="Use last dummy pulse to calibrate k = 0")
         self.addParameter(key='shimming', string='Shimming (*1e4)', val=[0.0, 0.0, 0.0], units=units.sh, field='OTH')
         self.addParameter(key='parFourierFraction', string='Partial fourier fraction', val=1.0, field='OTH', tip="Fraction of k planes aquired in slice direction")
@@ -828,7 +828,7 @@ class RARE(blankSeq.MRIBLANKSEQ):
 
         # Print info
         print('\nInfo from dummy pulses')
-        print('Phase difference at iso-center: %0.1f º' % ((res2.intercept - res1.intercept) * 180 / np.pi))
+        print('Phase difference at iso-center: %0.1f °' % ((res2.intercept - res1.intercept) * 180 / np.pi))
         print('Phase slope difference %0.3f rads/m' % (res2.slope - res1.slope))
         
 

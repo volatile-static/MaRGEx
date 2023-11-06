@@ -51,7 +51,7 @@ class PETRA(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='axesOrientation', string='Axes', val=[0, 2, 1], field='IM')
         self.addParameter(key='axesEnable', string='Axes enable', val=[1, 1, 0], field='IM')
         self.addParameter(key='axesOn', string='Axes ON', val=[1, 1, 1], field='IM')
-        self.addParameter(key='drfPhase', string='Phase of excitation pulse (º)', val=0.0, field='RF')
+        self.addParameter(key='drfPhase', string='Phase of excitation pulse (°)', val=0.0, field='RF')
         self.addParameter(key='dummyPulses', string='Dummy pulses', val=0, field='SEQ')
         self.addParameter(key='shimming', string='Shimming (*1e4)', val=[-70, -90, 10], field='OTH')
         self.addParameter(key='gradRiseTime', string='Grad Rise Time (us)', val=1000, field='OTH')

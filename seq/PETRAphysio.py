@@ -29,7 +29,7 @@ class PETRAphysio(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='larmorFreq', string='Larmor frequency (MHz)', val=3.053, units=units.MHz, field='RF')
         self.addParameter(key='rfExAmp', string='RF excitation amplitude (a.u.)', val=0.3, field='RF')
         self.addParameter(key='rfExTime', string='RF excitation time (us)', val=35.0, units=units.us, field='RF')
-        self.addParameter(key='rfPhase', string='RF phase (º)', val=0.0, field='RF')
+        self.addParameter(key='rfPhase', string='RF phase (°)', val=0.0, field='RF')
         self.addParameter(key='deadTime', string='Dead Time (us)', val=500., units=units.us, field='RF')
 
         self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')

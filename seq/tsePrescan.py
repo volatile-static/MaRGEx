@@ -37,8 +37,8 @@ class TSEPRE(blankSeq.MRIBLANKSEQ):
         self.shimming = None
         self.addParameter(key='seqName', string='TSE_prescan_info', val='TSE_prescan')
         self.addParameter(key='nScans', string='Number of scans', val=1, field='SEQ')
-        self.addParameter(key='rfExFA', string='Excitation flip angle (º)', val=90, field='RF')
-        self.addParameter(key='rfReFA', string='Refocusing flip angle (º)', val=180, field='RF')
+        self.addParameter(key='rfExFA', string='Excitation flip angle (°)', val=90, field='RF')
+        self.addParameter(key='rfReFA', string='Refocusing flip angle (°)', val=180, field='RF')
         self.addParameter(key='rfExTime', string='RF excitation time (us)', val=35.0, units=units.us, field='RF')
         self.addParameter(key='rfReTime', string='RF refocusing time (us)', val=70.0, units=units.us, field='RF')
         self.addParameter(key='echoSpacing', string='Echo spacing (ms)', val=10.0, field='SEQ', units=units.ms)
@@ -51,7 +51,7 @@ class TSEPRE(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='rdDephTime', string='Rd dephasing time (ms)', val=1.0, units=units.ms, field='OTH')
         self.addParameter(key='etl', string='Echo train length', val=2, field='SEQ')
         self.addParameter(key='shimming', string='Shimming', val=[0, 0, 0], field='OTH', units=units.sh)
-        self.addParameter(key='rfExPhase', string='RF excitation phase (º)', val=0.0, field='OTH')
+        self.addParameter(key='rfExPhase', string='RF excitation phase (°)', val=0.0, field='OTH')
         self.addParameter(key='rdPreemphasis', string='Rd preemphasis', val=1.0, field='OTH')
 
     def sequenceInfo(self):

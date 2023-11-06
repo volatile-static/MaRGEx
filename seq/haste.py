@@ -46,7 +46,7 @@ class HASTE(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='rdPreemphasis', string='Rd preemphasis', val=1.0, field='OTH')
         self.addParameter(key='ssPreemphasis', string='SS preemphasis', val=1.0, field='OTH')
         self.addParameter(key='crusherDelay', string='Crusher delay (us)', val=0.0, field='OTH')
-        self.addParameter(key='drfPhase', string='Phase of exciation pulse (º)', val=0.0, field='RF')
+        self.addParameter(key='drfPhase', string='Phase of exciation pulse (°)', val=0.0, field='RF')
         self.addParameter(key='dummyPulses', string='Dummy pulses', val=1, field='SEQ')
         self.addParameter(key='shimming', string='Shimming (*1e4)', val=[-70, -90, 10], field='OTH')
         self.addParameter(key='parFourierFraction', string='Partial fourier fraction', val=1.0, field='OTH')

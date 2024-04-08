@@ -49,6 +49,8 @@ class MRIBLANKSEQ:
                          'g2': [[],[]],
                          'rx0': [[],[]],
                          'rx1': [[],[]],
+                         'rx2': [[],[]],
+                         'rx3': [[],[]],
                          'tx0': [[],[]],
                          'tx1': [[],[]],
                          'ttl0': [[],[]],
@@ -789,10 +791,12 @@ class MRIBLANKSEQ:
         self.flo_dict['g1'][1] = np.concatenate((self.flo_dict['g1'][1], np.array([0])), axis=0)
         self.flo_dict['g2'][0] = np.concatenate((self.flo_dict['g2'][0], np.array([tEnd])), axis=0)
         self.flo_dict['g2'][1] = np.concatenate((self.flo_dict['g2'][1], np.array([0])), axis=0)
-        self.flo_dict['rx0'][0] = np.concatenate((self.flo_dict['rx0'][0], np.array([tEnd])), axis=0)
-        self.flo_dict['rx0'][1] = np.concatenate((self.flo_dict['rx0'][1], np.array([0])), axis=0)
-        self.flo_dict['rx1'][0] = np.concatenate((self.flo_dict['rx1'][0], np.array([tEnd])), axis=0)
-        self.flo_dict['rx1'][1] = np.concatenate((self.flo_dict['rx1'][1], np.array([0])), axis=0)
+
+        for i in range(4):
+            key = f'rx{i}'
+            self.flo_dict[key][0] = np.concatenate((self.flo_dict[key][0], np.array([tEnd])), axis=0)
+            self.flo_dict[key][1] = np.concatenate((self.flo_dict[key][1], np.array([0])), axis=0)
+
         self.flo_dict['tx0'][0] = np.concatenate((self.flo_dict['tx0'][0], np.array([tEnd])), axis=0)
         self.flo_dict['tx0'][1] = np.concatenate((self.flo_dict['tx0'][1], np.array([0])), axis=0)
         self.flo_dict['tx1'][0] = np.concatenate((self.flo_dict['tx1'][0], np.array([tEnd])), axis=0)
@@ -809,10 +813,12 @@ class MRIBLANKSEQ:
         self.flo_dict['g1'][1] = np.array([shimming[1]])
         self.flo_dict['g2'][0] = np.array([t0])
         self.flo_dict['g2'][1] = np.array([shimming[2]])
-        self.flo_dict['rx0'][0] = np.array([t0])
-        self.flo_dict['rx0'][1] = np.array([0])
-        self.flo_dict['rx1'][0] = np.array([t0])
-        self.flo_dict['rx1'][1] = np.array([0])
+        
+        for i in range(4):
+            key = f'rx{i}'
+            self.flo_dict[key][0] = np.array([t0])
+            self.flo_dict[key][1] = np.array([0])
+
         self.flo_dict['tx0'][0] = np.array([t0])
         self.flo_dict['tx0'][1] = np.array([0])
         self.flo_dict['tx1'][0] = np.array([t0])
@@ -855,6 +861,8 @@ class MRIBLANKSEQ:
                                'grad_vz': (self.flo_dict['g2'][0], self.flo_dict['g2'][1]),
                                'rx0_en': (self.flo_dict['rx0'][0], self.flo_dict['rx0'][1]),
                                'rx1_en': (self.flo_dict['rx1'][0], self.flo_dict['rx1'][1]),
+                               'rx2_en': (self.flo_dict['rx2'][0], self.flo_dict['rx2'][1]),
+                               'rx3_en': (self.flo_dict['rx3'][0], self.flo_dict['rx3'][1]),
                                'tx0': (self.flo_dict['tx0'][0], self.flo_dict['tx0'][1]),
                                'tx1': (self.flo_dict['tx1'][0], self.flo_dict['tx1'][1]),
                                'tx_gate': (self.flo_dict['ttl0'][0], self.flo_dict['ttl0'][1]),

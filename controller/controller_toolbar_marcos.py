@@ -7,13 +7,20 @@
 import time
 
 from widgets.widget_toolbar_marcos import MarcosToolBar
-import subprocess
 import experiment as ex
 import numpy as np
 import shutil
 import configs.hw_config as hw
 import autotuning.autotuning as autotuning # Just to use an arduino
 
+class subprocess:
+    """
+    Dummy class to disable the
+    subprocess.run() function.
+    """
+    @staticmethod
+    def run(*args):
+        print(args)
 
 class MarcosController(MarcosToolBar):
     """

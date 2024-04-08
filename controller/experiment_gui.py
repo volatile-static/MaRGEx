@@ -131,19 +131,12 @@ class Experiment(ex.Experiment):
         rxd_iq = {}
 
         # (1 << 24) just for the int->float conversion to be reasonable - exact value doesn't matter for now
-        rx0_norm_factor = self._rx0_cic_factor / (1 << 24)
-        rx1_norm_factor = self._rx0_cic_factor / (1 << 24)
-
-        try: # Signal in millivolts with phase as it should be
-            rxd_iq['rx0'] = hw.adcFactor * rx0_norm_factor * (np.array(rxd['rx0_i']).astype(np.int32).astype(float) -
-                                               1j * np.array(rxd['rx0_q']).astype(np.int32).astype(float))
-        except (KeyError, TypeError):
-            pass
-
-        try: # Signal in millivolts with phase as it should be
-            rxd_iq['rx1'] = hw.adcFactor * rx1_norm_factor * (np.array(rxd['rx1_i']).astype(np.int32).astype(float) -
-                                               1j * np.array(rxd['rx1_q']).astype(np.int32).astype(float))
-        except (KeyError, TypeError):
-            pass
+        rx_norm_factor = self._rx0_cic_factor / (1 << 24)
+        for ch in range(4):
+            try: # Signal in millivolts with phase as it should be
+                rxd_iq['rx%d' % ch] = hw.adcFactor * rx_norm_factor * (np.array(rxd['rx%d_i' % ch]).astype(np.int32).astype(float) -
+                                                                       1j * np.array(rxd['rx%d_q' % ch]).astype(np.int32).astype(float))
+            except (KeyError, TypeError):
+                pass
 
         return rxd_iq, msgs

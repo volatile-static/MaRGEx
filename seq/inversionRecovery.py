@@ -11,6 +11,7 @@ import experiment as ex
 import numpy as np
 import seq.mriBlankSeq as blankSeq  # Import the mriBlankSequence for any new sequence.
 import scipy.signal as sig
+from scipy.optimize import curve_fit
 import configs.hw_config as hw
 
 class InversionRecovery(blankSeq.MRIBLANKSEQ):
@@ -188,6 +189,15 @@ class InversionRecovery(blankSeq.MRIBLANKSEQ):
         return True
 
     def sequenceAnalysis(self, obj=''):
+        def ir(t, m0, t1):
+            return m0 * (1 - 2 * np.exp(-t / t1))
+        x_data = np.array(self.data[0])
+        y_data = np.array(self.data[1])
+        popt, pcov = curve_fit(ir, x_data, y_data, p0=[np.max(y_data), 500])
+        self.mapVals['popt'] = popt
+        self.mapVals['pcov'] = pcov
+        print('T1: ', popt[1], ' ms')
+        print('M0: ', popt[0], ' mV')
 
         # Signal vs inverion time
         result1 = {'widget': 'curve',
@@ -199,9 +209,20 @@ class InversionRecovery(blankSeq.MRIBLANKSEQ):
                    'legend': [''],
                    'row': 0,
                    'col': 0}
+        result2 = {
+            'widget': 'curve',
+            'xData': self.data[0],
+            'yData': [ir(self.data[0], popt[0], popt[1])],
+            'xLabel': 'Time (ms)',
+            'yLabel': 'Signal amplitude (mV)',
+            'title': '',
+            'legend': ['Fit'],
+            'row': 0,
+            'col': 0
+        }
 
         # create self.out to run in iterative mode
-        self.output = [result1]
+        self.output = [result1, result2]
 
         self.saveRawData()
 

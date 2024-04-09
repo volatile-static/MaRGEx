@@ -199,7 +199,7 @@ class MRIBLANKSEQ:
             os.makedirs('experiments/parameterization')
 
         # Save csv file with mapVals
-        with open('experiments/parameterization/%s_last_parameters.csv' % self.mapVals['seqName'], 'w') as csvfile:
+        with open('experiments/parameterization/%s_last_parameters.csv' % self.mapVals['seqName'], 'w', encoding='utf-8') as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=self.mapKeys)
             writer.writeheader()
             writer.writerows([self.mapNmspc, self.mapVals])
@@ -913,7 +913,7 @@ class MRIBLANKSEQ:
         savemat("%s/%s.mat" % (directory_mat, file_name), self.mapVals)
 
         # Save csv with input parameters
-        with open('%s/%s.csv' % (directory_csv, file_name), 'w') as csvfile:
+        with open('%s/%s.csv' % (directory_csv, file_name), 'w', encoding='utf-8') as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=self.mapKeys)
             writer.writeheader()
             mapVals = {}

@@ -192,8 +192,10 @@ class InversionRecovery(blankSeq.MRIBLANKSEQ):
         def ir(t, m0, t1):
             return m0 * (1 - 2 * np.exp(-t / t1))
         x_data = np.array(self.data[0])
-        y_data = np.array(self.data[1])
-        popt, pcov = curve_fit(ir, x_data, y_data, p0=[np.max(y_data), 500])
+        y_data = np.abs(np.array(self.data[1]))
+        xZero = np.argmin(y_data)
+        y_data[:xZero] *= -1
+        popt, pcov = curve_fit(ir, x_data, y_data, p0=[np.max(y_data), 200])
         self.mapVals['popt'] = popt
         self.mapVals['pcov'] = pcov
         print('T1: ', popt[1], ' ms')
@@ -202,27 +204,16 @@ class InversionRecovery(blankSeq.MRIBLANKSEQ):
         # Signal vs inverion time
         result1 = {'widget': 'curve',
                    'xData': self.data[0],
-                   'yData': [np.abs(self.data[1])],
+                   'yData': [np.abs(self.data[1]), ir(self.data[0], popt[0], popt[1])],
                    'xLabel': 'Time (ms)',
                    'yLabel': 'Signal amplitude (mV)',
                    'title': '',
                    'legend': [''],
                    'row': 0,
                    'col': 0}
-        result2 = {
-            'widget': 'curve',
-            'xData': self.data[0],
-            'yData': [ir(self.data[0], popt[0], popt[1])],
-            'xLabel': 'Time (ms)',
-            'yLabel': 'Signal amplitude (mV)',
-            'title': '',
-            'legend': ['Fit'],
-            'row': 0,
-            'col': 0
-        }
 
         # create self.out to run in iterative mode
-        self.output = [result1, result2]
+        self.output = [result1]
 
         self.saveRawData()
 

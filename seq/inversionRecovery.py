@@ -208,7 +208,7 @@ class InversionRecovery(blankSeq.MRIBLANKSEQ):
                    'xLabel': 'Time (ms)',
                    'yLabel': 'Signal amplitude (mV)',
                    'title': '',
-                   'legend': [''],
+                   'legend': ['signal','fitted'],
                    'row': 0,
                    'col': 0}
 

@@ -213,7 +213,7 @@ class MRIBLANKSEQ:
         mapValsOld = self.mapVals
         try:
             if file is None:    # Load last parameters
-                with open('%s/%s_last_parameters.csv' % (directory, self.mapVals['seqName']), 'r') as csvfile:
+                with open('%s/%s_last_parameters.csv' % (directory, self.mapVals['seqName']), 'r', encoding='utf-8') as csvfile:
                     reader = csv.DictReader(csvfile)
                     for l in reader:
                         mapValsNew = l

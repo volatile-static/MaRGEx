@@ -32,6 +32,7 @@ import seq.MRID as mrid
 import seq.tsePrescan as tsePrescan
 import seq.PETRAphysio as PETRAphysio
 import seq.mse as mse
+from seq import a2re, fe3d, b0map
 
 class RARE(rare.RARE):
     def __init__(self): super(RARE, self).__init__()
@@ -144,5 +145,7 @@ defaultsequences = {
     'testSE': testSE(),
     'PETRAphysio': PETRAphysio(),
     'MSE': MSE(),
-
+    'B0Map': b0map.B0Map(),
+    'A2RE': a2re.A2RE(),
+    'FE3D': fe3d.GRE3D(),
 }

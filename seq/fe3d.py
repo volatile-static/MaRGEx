@@ -118,15 +118,16 @@ class GRE3D(blankSeq.MRIBLANKSEQ):
                     
                     tim += self.rfExTime
                     # 相位编码、选层编码和读出方向predephase同时开
-                    gradient(tim, self.phaseTime, phase_amp, self.axes[1])
+                    gradient(tim - 1, self.phaseTime, phase_amp, self.axes[1])
                     gradient(tim, self.phaseTime, slice_amp, self.axes[2])
-                    gradient(tim, self.phaseTime, self.ROpreAmp, self.axes[0]) 
+                    gradient(tim + 1, self.phaseTime, self.ROpreAmp, self.axes[0]) 
                 
                     tim += self.phaseTime + 2 * self.riseTime + 1
                     gradient(tim, self.readoutTime, self.readAmp, self.axes[0])
 
                     tim += self.riseTime + self.readPadding
-                    self.rxGateSync(tim, acq_time)
+                    for k in range(4):
+                        self.rxGateSync(tim, acq_time, k)
 
                     # slice and spoil
                     tim += acq_time - self.readPadding + self.riseTime + self.spoilDelay
@@ -143,7 +144,7 @@ class GRE3D(blankSeq.MRIBLANKSEQ):
         if not plot_seq:
             rxd, msg = self.expt.run()
             print(msg)
-            self.mapVals['dataOver'] = rxd['rx0']
+            self.mapVals['dataOver'] = list(rxd.values())
 
         self.expt.__del__()
         self.error = False
@@ -153,18 +154,17 @@ class GRE3D(blankSeq.MRIBLANKSEQ):
         if self.error:
             self.saveRawData()
             return []
-        data_over = np.reshape(self.mapVals['dataOver'], (self.mapVals['nScans'], -1))
-        print('数据维度：', data_over.shape)
-        data_average = np.average(data_over, axis=0).reshape((self.nSlices, -1))
-        data_full = []
-        for i in range(self.nSlices):
-            data_full.append(self.decimate(data_average[i], self.nPoints))
-        ksp = self.mapVals['ksp3d'] = np.reshape(data_full, (self.nSlices, self.nPoints, self.nPoints))
-        img = self.mapVals['img3d'] = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(ksp)))  # 重建
+        data_over_all = self.mapVals['dataOver']
+        for ch in range(4):
+            data_over = np.reshape(data_over_all[ch], (self.mapVals['nScans'], -1))
+            data_average = np.average(data_over, axis=0).reshape((self.nSlices, -1))
+            data_full = [self.decimate(s, self.nPoints, 'Normal') for s in data_average]
+            ksp = self.mapVals['ksp3d_ch%d' % ch] = np.reshape(data_full, (self.nSlices, self.nPoints, self.nPoints))
+            self.mapVals['img3d_ch%d' % ch] = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(ksp)))  # 重建
 
         self.output = [{
             'widget': 'image',
-            'data': np.abs(img),
+            'data': np.abs(self.mapVals['img3d_ch0']),
             'xLabel': '相位编码',
             'yLabel': '频率编码',
             'title': '幅值图',
@@ -172,7 +172,7 @@ class GRE3D(blankSeq.MRIBLANKSEQ):
             'col': 0
         }, {
             'widget': 'image',
-            'data': np.log10(np.abs(ksp)),
+            'data': np.log10(np.abs(self.mapVals['ksp3d_ch0'])),
             'xLabel': 'mV',
             'yLabel': 'ms',
             'title': 'k-Space',

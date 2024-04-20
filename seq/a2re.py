@@ -126,7 +126,8 @@ class A2RE(blankSeq.MRIBLANKSEQ):
                 # Readout
                 t_read = t_echo - self.readoutTime/2
                 gradient(t_read - self.riseTime, self.readoutTime, self.readoutAmp, self.axes['rd'])
-                self.rxGateSync(t_read + self.readPadding, acq_time)
+                for ch in range(4):
+                    self.rxGateSync(t_read + self.readPadding, acq_time, ch)
 
                 # Slice and Phase encoding
                 t_phase = t_read - 3*self.riseTime - self.phaseTime
@@ -160,20 +161,24 @@ class A2RE(blankSeq.MRIBLANKSEQ):
             print('开始扫描...')
             # Run the experiment and get data
             rxd, msgs = self.expt.run()
-            self.mapVals['dataOver'] = rxd['rx0']
+            self.mapVals['dataOver'] = list(rxd.values())
 
             self.expt.__del__()
         return True
 
     def sequenceAnalysis(self):
-        # 对每次读出分别降采样
-        data_full = self.decimate(self.mapVals['dataOver'], self.etl * self.nPoints[2] * self.nPoints[1])
-        data_full = np.reshape(data_full, (self.nPoints[2], self.nPoints[1], self.etl, -1))
-      
-        ksp = self.mapVals['ksp3d'] = np.mean(data_full, 2)  # 对回波链取平均
-        img = self.mapVals['img3d'] = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(ksp)))  # 重建
-        abs_img = np.abs(img)
+        data_over = self.mapVals['dataOver']
+        for ch in range(4):
+            # 对每次读出分别降采样
+            data_full = self.decimate(data_over[ch], self.etl * self.nPoints[2] * self.nPoints[1], 'Normal')
+            data_full = np.reshape(data_full, (self.nPoints[2], self.nPoints[1], self.etl, -1))
 
+            ksp = self.mapVals['ksp3d_ch%d' % ch] = np.mean(data_full, 2)  # 对回波链取平均
+            self.mapVals['img3d_ch%d' % ch] = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(ksp)))  # 重建
+            self.mapVals['raw%d' % ch] = data_full  # 保存原始数据
+
+        img = self.mapVals['img3d_ch0']    
+        abs_img = np.abs(img)
         self.output = self.out = [{
             'widget': 'image',
             'data': np.concatenate((abs_img/np.max(abs_img)*2 - 1, np.angle(img) / np.pi)),

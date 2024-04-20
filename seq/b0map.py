@@ -195,7 +195,7 @@ class B0Map(SeqBase):
             b0 = Δɸ / self.ΔTE
             self.output = [{
                 'widget': 'image',
-                'data': np.concatenate((b0, bin3d * b0.max()), axis=1),
+                'data': np.concatenate((b0, np.array(bin3d, int) * b0.max()), axis=1),
                 'title': 'B0 map (Hz)',
                 'xLabel': 'x',
                 'yLabel': 'y',

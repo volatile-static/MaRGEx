@@ -189,7 +189,7 @@ class A2RE(blankSeq.MRIBLANKSEQ):
             'col': 0
         }, {
             'widget': 'image',
-            'data': np.log(np.abs(ksp)),
+            'data': np.log(np.abs(self.mapVals['ksp3d_ch0'])),
             'xLabel': 'mV',
             'yLabel': 'ms',
             'title': 'k-Space',

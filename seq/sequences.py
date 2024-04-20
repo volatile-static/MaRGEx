@@ -32,7 +32,7 @@ import seq.MRID as mrid
 import seq.tsePrescan as tsePrescan
 import seq.PETRAphysio as PETRAphysio
 import seq.mse as mse
-import seq.b0map as b0map
+from seq import a2re, fe3d, b0map
 
 class RARE(rare.RARE):
     def __init__(self): super(RARE, self).__init__()
@@ -114,9 +114,6 @@ class Localizer(localizer.Localizer):
 class MSE(mse.MSE):
     def __init__(self): super(MSE, self).__init__()
 
-class B0Map(b0map.B0Map):
-    def __init__(self): super(B0Map, self).__init__()
-
 """
 Definition of default sequences
 """
@@ -148,5 +145,7 @@ defaultsequences = {
     'testSE': testSE(),
     'PETRAphysio': PETRAphysio(),
     'MSE': MSE(),
-    'B0Map': B0Map(),
+    'B0Map': b0map.B0Map(),
+    'A2RE': a2re.A2RE(),
+    'FE3D': fe3d.GRE3D(),
 }

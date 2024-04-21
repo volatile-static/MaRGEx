@@ -1,7 +1,8 @@
 import numpy as np
 
+from scipy.signal import decimate
+from experiment import Experiment
 import configs.hw_config as hw
-import controller.experiment_gui as ex
 import seq.mriBlankSeq as blankSeq
 
 
@@ -64,7 +65,7 @@ class A2RE(blankSeq.MRIBLANKSEQ):
 
         print('TE_eff: ', round((self.t_e * self.etl + self.tau) / 1e3), 'ms')
         acqTime = self.readoutTime - 2*self.readPadding  # 读出边距
-        self.samplingPeriod = acqTime / self.nPoints[0]
+        self.samplingPeriod = acqTime / self.nPoints[0] / hw.oversamplingFactor
 
         if not np.product(self.voxel) * self.readoutTime > 0:  # 防止输入过程中出现0
             return 0
@@ -91,9 +92,9 @@ class A2RE(blankSeq.MRIBLANKSEQ):
             return 0
 
     def sequenceRun(self, plotSeq=0, demo=False):
-        self.expt = ex.Experiment(lo_freq=self.mapVals['larmorFreq'], rx_t=self.samplingPeriod)
-        self.mapVals['samplingRate'] = self.expt.getSamplingRate()  # 采样间隔
-        acq_time = self.mapVals['samplingRate'] * self.nPoints[0]
+        self.expt = Experiment(lo_freq=self.mapVals['larmorFreq'], rx_t=self.samplingPeriod)
+        self.mapVals['samplingRate'] = self.expt.get_rx_ts()[0]  # 采样间隔
+        acq_time = self.mapVals['samplingRate'] * self.nPoints[0] * hw.oversamplingFactor
         print('采样率：', 1e3/self.mapVals['samplingRate'], ' (kHz)')
         
         def gradient(t, flat, amp, channel):
@@ -127,7 +128,7 @@ class A2RE(blankSeq.MRIBLANKSEQ):
                 t_read = t_echo - self.readoutTime/2
                 gradient(t_read - self.riseTime, self.readoutTime, self.readoutAmp, self.axes['rd'])
                 for ch in range(4):
-                    self.rxGateSync(t_read + self.readPadding, acq_time, ch)
+                    self.rxGate(t_read + self.readPadding, acq_time, ch)
 
                 # Slice and Phase encoding
                 t_phase = t_read - 3*self.riseTime - self.phaseTime
@@ -139,43 +140,39 @@ class A2RE(blankSeq.MRIBLANKSEQ):
                 gradient(t_rewind, self.phaseTime, -phase_amp, self.axes['ph'])
                 gradient(t_rewind, self.phaseTime, -slice_amp, self.axes['sl'])
 
-        # --------------------- ↓序列开始↓ ---------------------
-        tim = 20
-        self.iniSequence(tim, self.shimming)
-
-        for i in range(self.nPoints[2]):
-            for j in range(self.nPoints[1]):
-                shot(
-                    t_start=1e5 + (i*self.nPoints[1] + j)*self.t_r, 
-                    slice_amp=self.sliceGrads[i], 
-                    phase_amp=self.phaseGrads[j]
-                )
-
-        self.endSequence(self.nPoints[2] * self.nPoints[1] * self.t_r + 2e5)
-        # --------------------- ↑序列结束↑ ---------------------
-
-        if not self.floDict2Exp():  # 验证时序
+        raw_data = np.zeros((self.nPoints[2], self.nPoints[1], 4, self.etl*self.nPoints[0]))
+        try:
+            for i in range(self.nPoints[2]):
+                for j in range(self.nPoints[1]):
+                    self.iniSequence(20, self.shimming)
+                    shot(100, self.sliceGrads[i], self.phaseGrads[j])
+                    self.endSequence(100 + self.t_r)
+                    self.expt.__del__()
+                    self.expt = Experiment(self.mapVals['larmorFreq'], self.mapVals['samplingRate'])
+                    if not self.floDict2Exp():
+                        print('seq CE %d,%d' % (i, j))
+                        return 0
+                    rxd, _ = self.expt.run()
+                    raw_data[i, j] = [
+                        decimate(dat, hw.oversamplingFactor, ftype='fir') for dat in rxd.values()
+                    ]
+            self.mapVals['rawData'] = raw_data
+            return True
+        except Exception as e:
+            print(e)
             return 0
-
-        if not plotSeq:
-            print('开始扫描...')
-            # Run the experiment and get data
-            rxd, msgs = self.expt.run()
-            self.mapVals['dataOver'] = list(rxd.values())
-
+        finally:
             self.expt.__del__()
-        return True
 
     def sequenceAnalysis(self):
-        data_over = self.mapVals['dataOver']
+        raw_data = self.mapVals['rawData']
         for ch in range(4):
-            # 对每次读出分别降采样
-            data_full = self.decimate(data_over[ch], self.etl * self.nPoints[2] * self.nPoints[1], 'Normal')
-            data_full = np.reshape(data_full, (self.nPoints[2], self.nPoints[1], self.etl, -1))
-
+            data_full = self.mapVals['mse3d_ch%d' % ch] = np.reshape(
+                raw_data[:, :, ch, :], 
+                (self.nPoints[2], self.nPoints[1], self.etl, -1)
+            )
             ksp = self.mapVals['ksp3d_ch%d' % ch] = np.mean(data_full, 2)  # 对回波链取平均
             self.mapVals['img3d_ch%d' % ch] = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(ksp)))  # 重建
-            self.mapVals['raw%d' % ch] = data_full  # 保存原始数据
 
         img = self.mapVals['img3d_ch0']    
         abs_img = np.abs(img)
@@ -189,7 +186,7 @@ class A2RE(blankSeq.MRIBLANKSEQ):
             'col': 0
         }, {
             'widget': 'image',
-            'data': np.log(np.abs(ksp)),
+            'data': np.log(np.abs(self.mapVals['ksp3d_ch0'])),
             'xLabel': 'mV',
             'yLabel': 'ms',
             'title': 'k-Space',

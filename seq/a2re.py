@@ -95,7 +95,7 @@ class A2RE(blankSeq.MRIBLANKSEQ):
         self.expt = Experiment(lo_freq=self.mapVals['larmorFreq'], rx_t=self.samplingPeriod)
         self.mapVals['samplingRate'] = self.expt.get_rx_ts()[0]  # 采样间隔
         acq_time = self.mapVals['samplingRate'] * self.nPoints[0] * hw.oversamplingFactor
-        print('采样率：', 1e3/self.mapVals['samplingRate'], ' (kHz)')
+        print('采样率：%dkHz' % (1e3/self.mapVals['samplingRate']/hw.oversamplingFactor))
         
         def gradient(t, flat, amp, channel):
             self.gradTrap(
@@ -140,7 +140,7 @@ class A2RE(blankSeq.MRIBLANKSEQ):
                 gradient(t_rewind, self.phaseTime, -phase_amp, self.axes['ph'])
                 gradient(t_rewind, self.phaseTime, -slice_amp, self.axes['sl'])
 
-        raw_data = np.zeros((self.nPoints[2], self.nPoints[1], 4, self.etl*self.nPoints[0]))
+        raw_data = np.zeros((self.nPoints[2], self.nPoints[1], 4, self.etl*self.nPoints[0]), complex)
         try:
             for i in range(self.nPoints[2]):
                 for j in range(self.nPoints[1]):

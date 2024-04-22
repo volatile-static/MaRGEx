@@ -293,7 +293,7 @@ class B0Map(SeqBase):
             self.larmorFreq, 
             采样间隔, 
             grad_max_update_rate=self.gradRate,
-            init_gpa=True
+            init_gpa=False
         )
         if self.floDict2Exp():
             _, msg = self.expt.run()

@@ -13,19 +13,23 @@ gFactor = [0.025, 0.040, 0.035] # (X, Y, Z) in T/m/o.u.
 grad_rise_time = 400e-6 # s, time for gradient ramps
 grad_steps = 16 # steps to gradient ramps
 gammaB = 42.56e6 # Hz/T, Gyromagnetic ratio
-blkTime = 15 # us, blanking time of Barthel's RFPA
+blkTime = 35 # us, blanking time of Barthel's RFPA
 gradDelay = 9 # Gradient amplifier delay (us)
 oversamplingFactor = 6 # Rx oversampling
 maxRdPoints = 2**18 # Maximum number of points to be acquired by the red pitaya
 maxOrders = 2**14 # Maximum number of orders to be processed by the red pitaya
-deadTime = 400 # us, RF coil dead time
-b1Efficiency = np.pi/(0.3*70) # rads / (a.u. * us)
-larmorFreq = 3.066 # MHz
+deadTime = 160 # us, RF coil dead time
+b1Efficiency = np.pi / (0.117 * 100) # rads / (a.u. * us)
+larmorFreq = 4.4286 # MHz
 cic_delay_points = 3 # to account for signal delay from red pitaya due to cic filter
 addRdPoints = 10 # to account for wrong first points after decimation
-adcFactor = 13.788 # mV/adcUnit
-scanner_name = "Physio V1.01"
-antenna_dict = {"RF01": np.pi/(0.3*70), "RF02": np.pi/(0.3*70)}
+adcFactor = 16 # mV/adcUnit
+scanner_name = "床旁"
+antenna_dict = {
+    "膝": np.pi / (0.055 * 200), 
+    "腕": np.pi / (0.055 * 100),
+    "RF02": np.pi/(0.3*70)
+}
 fov = [20.0, 20.0, 20.0]
 dfov = [0.0, 0.0, 0.0]
 bash_path = "D:\Archivos de Programa\Git\git-bash.exe" # use "gnome-terminal" for genome linux

@@ -109,6 +109,10 @@ class A2RE(blankSeq.MRIBLANKSEQ):
             )
 
         def shot(t_start, slice_amp, phase_amp):
+            for ch in range(hw.rx_channels):  # 噪声
+                self.rxGate(t_start, acq_time, ch)
+            t_start += acq_time + 10
+
             self.rfRecPulse(t_start, self.rfExTime, self.rfExAmp)  # 激发
 
             # 读出方向predephase
@@ -127,7 +131,7 @@ class A2RE(blankSeq.MRIBLANKSEQ):
                 # Readout
                 t_read = t_echo - self.readoutTime/2
                 gradient(t_read - self.riseTime, self.readoutTime, self.readoutAmp, self.axes['rd'])
-                for ch in range(4):
+                for ch in range(hw.rx_channels):
                     self.rxGate(t_read + self.readPadding, acq_time, ch)
 
                 # Slice and Phase encoding
@@ -140,7 +144,9 @@ class A2RE(blankSeq.MRIBLANKSEQ):
                 gradient(t_rewind, self.phaseTime, -phase_amp, self.axes['ph'])
                 gradient(t_rewind, self.phaseTime, -slice_amp, self.axes['sl'])
 
-        raw_data = np.zeros((self.nPoints[2], self.nPoints[1], 4, self.etl*self.nPoints[0]), complex)
+        raw_data = np.zeros((
+            self.nPoints[2], self.nPoints[1], hw.rx_channels, (self.etl + 1)*self.nPoints[0]
+        ), complex)
         try:
             for i in range(self.nPoints[2]):
                 for j in range(self.nPoints[1]):
@@ -153,9 +159,9 @@ class A2RE(blankSeq.MRIBLANKSEQ):
                         print('seq CE %d,%d' % (i, j))
                         return 0
                     rxd, _ = self.expt.run()
-                    raw_data[i, j] = [
-                        decimate(dat, hw.oversamplingFactor, ftype='fir') for dat in rxd.values()
-                    ]
+                    raw_data[i, j] = list(rxd.values())
+                        # decimate(dat, hw.oversamplingFactor, ftype='fir') for dat in rxd.values()
+                    
             self.mapVals['rawData'] = raw_data
             return True
         except Exception as e:
@@ -166,12 +172,14 @@ class A2RE(blankSeq.MRIBLANKSEQ):
 
     def sequenceAnalysis(self):
         raw_data = self.mapVals['rawData']
-        for ch in range(4):
-            data_full = self.mapVals['mse3d_ch%d' % ch] = np.reshape(
+        for ch in range(hw.rx_channels):
+            data_full = np.reshape(
                 raw_data[:, :, ch, :], 
-                (self.nPoints[2], self.nPoints[1], self.etl, -1)
+                (self.nPoints[2], self.nPoints[1], -1, self.nPoints[0])
             )
-            ksp = self.mapVals['ksp3d_ch%d' % ch] = np.mean(data_full, 2)  # 对回波链取平均
+            self.mapVals['mse3d_ch%d' % ch] = data_full[:, :, 1:, :]
+            self.mapVals['noise3d_ch%d' % ch] = data_full[:, :, 0, :].reshape(self.nPoints[2], self.nPoints[1], -1)
+            ksp = self.mapVals['ksp3d_ch%d' % ch] = np.mean(self.mapVals['mse3d_ch%d' % ch], 2)  # 对回波链取平均
             self.mapVals['img3d_ch%d' % ch] = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(ksp)))  # 重建
 
         img = self.mapVals['img3d_ch0']    

@@ -38,6 +38,7 @@ rp_version = "rp-122"
 lnaGain = 50 # dB
 temperature = 293 # k
 shimming_factor = 1e-5
+rx_channels = 4
 
 # Arduinos
 ard_sn_autotuning = '242353133363518050E0'

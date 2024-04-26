@@ -1,5 +1,5 @@
 import numpy as np
-
+from numpy.fft import ifftn, ifftshift
 from scipy.signal import decimate
 from experiment import Experiment
 import configs.hw_config as hw
@@ -65,7 +65,7 @@ class A2RE(blankSeq.MRIBLANKSEQ):
 
         print('TE_eff: ', round((self.t_e * self.etl + self.tau) / 1e3), 'ms')
         acqTime = self.readoutTime - 2*self.readPadding  # 读出边距
-        self.samplingPeriod = acqTime / self.nPoints[0] / hw.oversamplingFactor
+        self.samplingPeriod = acqTime / self.over_samples
 
         if not np.product(self.voxel) * self.readoutTime > 0:  # 防止输入过程中出现0
             return 0
@@ -92,9 +92,10 @@ class A2RE(blankSeq.MRIBLANKSEQ):
             return 0
 
     def sequenceRun(self, plotSeq=0, demo=False):
+        self.sequenceAtributes()
         self.expt = Experiment(lo_freq=self.mapVals['larmorFreq'], rx_t=self.samplingPeriod)
         self.mapVals['samplingRate'] = self.expt.get_rx_ts()[0]  # 采样间隔
-        acq_time = self.mapVals['samplingRate'] * self.nPoints[0] * hw.oversamplingFactor
+        acq_time = self.mapVals['samplingRate'] * self.over_samples
         print('采样率：%dkHz' % (1e3/self.mapVals['samplingRate']/hw.oversamplingFactor))
         
         def gradient(t, flat, amp, channel):
@@ -145,7 +146,7 @@ class A2RE(blankSeq.MRIBLANKSEQ):
                 gradient(t_rewind, self.phaseTime, -slice_amp, self.axes['sl'])
 
         raw_data = np.zeros((
-            self.nPoints[2], self.nPoints[1], hw.rx_channels, (self.etl + 1)*self.nPoints[0]
+            self.nPoints[2], self.nPoints[1], hw.rx_channels, (self.etl + 1)*self.over_samples
         ), complex)
         try:
             for i in range(self.nPoints[2]):
@@ -160,9 +161,9 @@ class A2RE(blankSeq.MRIBLANKSEQ):
                         return 0
                     rxd, _ = self.expt.run()
                     raw_data[i, j] = list(rxd.values())
-                        # decimate(dat, hw.oversamplingFactor, ftype='fir') for dat in rxd.values()
                     
             self.mapVals['rawData'] = raw_data
+            self.mapVals['samplesPerRead'] = self.over_samples
             return True
         except Exception as e:
             print(e)
@@ -173,14 +174,13 @@ class A2RE(blankSeq.MRIBLANKSEQ):
     def sequenceAnalysis(self):
         raw_data = self.mapVals['rawData']
         for ch in range(hw.rx_channels):
-            data_full = np.reshape(
-                raw_data[:, :, ch, :], 
-                (self.nPoints[2], self.nPoints[1], -1, self.nPoints[0])
-            )
+            data_over = raw_data[:, :, ch, :].reshape(-1, self.over_samples)
+            data_deci = np.apply_along_axis(decimate, 1, data_over, hw.oversamplingFactor, ftype='fir', zero_phase=True)
+            data_full = data_deci.reshape(self.nPoints[2], self.nPoints[1], -1, self.nPoints[0])
             self.mapVals['mse3d_ch%d' % ch] = data_full[:, :, 1:, :]
             self.mapVals['noise3d_ch%d' % ch] = data_full[:, :, 0, :].reshape(self.nPoints[2], self.nPoints[1], -1)
             ksp = self.mapVals['ksp3d_ch%d' % ch] = np.mean(self.mapVals['mse3d_ch%d' % ch], 2)  # 对回波链取平均
-            self.mapVals['img3d_ch%d' % ch] = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(ksp)))  # 重建
+            self.mapVals['img3d_ch%d' % ch] = ifftshift(ifftn(ifftshift(ksp)))  # 重建
 
         img = self.mapVals['img3d_ch0']    
         abs_img = np.abs(img)
@@ -203,3 +203,7 @@ class A2RE(blankSeq.MRIBLANKSEQ):
         }]
         self.saveRawData()
         return self.output
+
+    @property
+    def over_samples(self):
+        return self.nPoints[0] * hw.oversamplingFactor

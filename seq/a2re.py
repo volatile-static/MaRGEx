@@ -178,7 +178,7 @@ class A2RE(blankSeq.MRIBLANKSEQ):
             data_deci = np.apply_along_axis(decimate, 1, data_over, hw.oversamplingFactor, ftype='fir', zero_phase=True)
             data_full = data_deci.reshape(self.nPoints[2], self.nPoints[1], -1, self.nPoints[0])
             self.mapVals['mse3d_ch%d' % ch] = data_full[:, :, 1:, :]
-            self.mapVals['noise3d_ch%d' % ch] = data_full[:, :, 0, :].reshape(self.nPoints[2], self.nPoints[1], -1)
+            self.mapVals['emi3d_ch%d' % ch] = data_full[:, :, 0, :].reshape(self.nPoints[2], self.nPoints[1], -1)
             ksp = self.mapVals['ksp3d_ch%d' % ch] = np.mean(self.mapVals['mse3d_ch%d' % ch], 2)  # 对回波链取平均
             self.mapVals['img3d_ch%d' % ch] = ifftshift(ifftn(ifftshift(ksp)))  # 重建
 

@@ -16,15 +16,6 @@ import configs.hw_config as hw
 import autotuning.autotuning as autotuning # Just to use an arduino
 import threading
 
-class subprocess:
-    """
-    Dummy class to disable the
-    subprocess.run() function.
-    """
-    @staticmethod
-    def run(*args):
-        print(args)
-
 class MarcosController(MarcosToolBar):
     """
     Controller class for managing MaRCoS (Magnetic Resonance Compatible

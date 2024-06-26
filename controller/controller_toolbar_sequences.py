@@ -74,6 +74,7 @@ class SequenceController(SequenceToolBar):
         items = [self.main.protocol_inputs.item(index) for index in range(self.main.protocol_inputs.count())]
         for item in items:
             self.main.protocol_inputs.sequenceDoubleClicked(item)
+            hw.dfov = [0.0, 0.0, 0.0]
             time.sleep(0.1)
 
     def autocalibration(self):
@@ -97,12 +98,27 @@ class SequenceController(SequenceToolBar):
         ]
 
         for seq_name in seq_names:
-            # Execute the sequence
-            defaultsequences[seq_name].loadParams(directory='calibration', file=seq_name)
+            # Get sequence parameters
+            seq = defaultsequences[seq_name]
+            seq.loadParams(directory='calibration', file=seq_name)
+
+            # Specific tasks for RabiFlops
             if seq_name == 'RabiFlops':
+                # Fix rf amplitude
                 rf_amp = np.pi/(hw.b1Efficiency*70)
-                defaultsequences[seq_name].mapVals['rfExAmp'] = rf_amp
-                defaultsequences[seq_name].mapVals['rfReAmp'] = rf_amp
+                seq.mapVals['rfExAmp'] = rf_amp
+                seq.mapVals['rfReAmp'] = rf_amp
+
+                # Save csv with input parameters for larmor after RabiFlops
+                seq = defaultsequences['Larmor']
+                with open('calibration/%s_last_parameters.csv' % seq.mapVals['seqName'], 'w') as csvfile:
+                    writer = csv.DictWriter(csvfile, fieldnames=seq.mapKeys)
+                    writer.writeheader()
+                    map_vals = {}
+                    for key in seq.mapKeys:  # take only the inputs from mapVals
+                        map_vals[key] = seq.mapVals[key]
+                    writer.writerows([seq.mapNmspc, map_vals])
+
             self.runToList(seq_name=seq_name)
 
         # Update the inputs of the sequences
@@ -261,20 +277,29 @@ class SequenceController(SequenceToolBar):
             name = str(datetime.now())[11:23] + " | " + item_name
         self.main.history_list.addItem(name)
 
+        sequence = copy.copy(defaultsequences[seq_name])
+        # sequence.mapVals['larmorFreq'] = hw.larmorFreq
+        # sequence.mapVals['fov'] = hw.fov
+        # sequence.mapVals['dfov'] = hw.dfov
         if map_nmspc is None and map_vals is None:
-            map_nmspc = list(defaultsequences[seq_name].mapNmspc.values())
-            map_vals = list(defaultsequences[seq_name].mapVals.values())
+            map_nmspc = list(sequence.mapNmspc.values())
+            map_vals = list(sequence.mapVals.values())
 
         # Save results into the history
         self.main.history_list.inputs[name] = [map_nmspc, map_vals]
         self.main.history_list.pending_inputs[name] = [map_nmspc, map_vals]
 
+        # Set hw.dfov = 0 if sequence is image
+        if 'dfov' in defaultsequences[seq_name].mapVals:
+            hw.dfov = [0.0, 0.0, 0.0]
+            defaultsequences[seq_name].mapVals['dfov'] = [0.0, 0.0, 0.0]
+
         # Set to zero the dfov and angle for next figures
-        # for sequence in defaultsequences.values():
-        #     if 'dfov' in sequence.mapKeys:
-        #         sequence.mapVals['dfov'] = [0.0, 0.0, 0.0]   # mm
-        #     if 'angle' in sequence.mapKeys:
-        #         sequence.mapVals['angle'] = 0.0
+        for sequence in defaultsequences.values():
+            if 'dfov' in sequence.mapKeys:
+                sequence.mapVals['dfov'] = [0.0, 0.0, 0.0]   # mm
+            if 'angle' in sequence.mapKeys:
+                sequence.mapVals['angle'] = 0.0
 
         self.main.sequence_list.updateSequence()
 

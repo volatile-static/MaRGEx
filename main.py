@@ -1,5 +1,5 @@
-"""FirstMRI.pFirstMRI.pyy
-Startup Code
+"""
+Main file to run MaRGE
 """
 import os
 import sys
@@ -48,3 +48,4 @@ demo = False
 app = QApplication(sys.argv)
 gui = SessionController(demo)
 sys.exit(app.exec_())
+

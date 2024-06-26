@@ -1722,3 +1722,83 @@ class MRIBLANKSEQ:
         image = self.runIFFT(k_sp_zp)
 
         return image
+
+    def editer(ksp: np.ndarray, emi: list, ksz_col=0, ksz_lin=0):
+        def get_noise_kernel(data: list, pe_rng: int, ksz_col: int, ksz_lin: int):
+            noise_mat = []
+            for dat in data:
+                tmp = dat[:, pe_rng]
+                if isinstance(pe_rng, int):
+                    tmp = [tmp]
+                dfp = np.pad(tmp, ((ksz_col, ksz_col), (ksz_lin, ksz_lin)))
+                for col_shift in range(-ksz_col, ksz_col + 1):
+                    for lin_shift in range(-ksz_lin, ksz_lin + 1):
+                        dftmp = np.roll(dfp, (col_shift, lin_shift), (0, 1))
+                        noise_mat.append(dftmp[
+                            ksz_col:dftmp.shape[0] - ksz_col, 
+                            ksz_lin:dftmp.shape[1] - ksz_lin
+                        ])
+            noise_mat = np.array(noise_mat)
+            # kernels
+            gmat = noise_mat.reshape(noise_mat.shape[0], -1).T
+            init_mat_sub = ksp[:, pe_rng]
+            kernel, _, _, _ = np.linalg.lstsq(gmat, init_mat_sub.flatten(), None)
+            return kernel, gmat, init_mat_sub
+    
+        # image size
+        ncol = ksp.shape[0]
+        nlin = ksp.shape[1]
+        Nc = len(emi)
+    
+        # Initial pass using single PE line ( Nw =1 )
+        ksz_col = 0  # Deltakx = 1
+        ksz_lin = 0  # Deltaky = 1
+    
+        # kernels across pe lines
+        kern_pe = np.zeros((Nc * (2*ksz_col+1) * (2*ksz_lin+1), nlin), np.complex64)
+    
+        for clin in range(nlin):
+            kern_pe[:, clin], _, _ = get_noise_kernel(emi, clin, ksz_col, ksz_lin)
+    
+        # look at correlation between the kernels
+        kern_pe_normalized = kern_pe / np.linalg.norm(kern_pe, axis=0)
+    
+        kcor = np.dot(kern_pe_normalized.T, kern_pe_normalized)
+    
+        # threshold
+        kcor_thresh = np.abs(kcor) > 5e-1
+    
+        # start with full set of lines
+        aval_lins = list(range(nlin))
+    
+        # window stack
+        win_stack = [None] * (nlin + 1)
+    
+        cwin = 0
+        while aval_lins:
+            clin = min(aval_lins)
+            pe_rng = list(range(clin, 1 + clin + np.max(np.where(kcor_thresh[clin, clin:]))))
+    
+            win_stack[cwin] = pe_rng
+            aval_lins = sorted(list(set(aval_lins) - set(pe_rng)))
+            cwin += 1
+    
+        # drop the empty entries
+        win_stack = win_stack[:cwin]
+    
+        ksz_col = 7  # Deltakx
+        ksz_lin = 0  # Deltaky
+    
+        # solution kspace
+        gksp = np.zeros((ncol, nlin), np.complex64)
+    
+        for cwin in range(len(win_stack)):
+            pe_rng = win_stack[cwin]
+    
+            kern, gmat, init_mat_sub = get_noise_kernel(emi, pe_rng, ksz_col, ksz_lin)
+    
+            # put the solution back
+            tosub: np.ndarray = np.dot(gmat, kern)
+            gksp[:, pe_rng] = init_mat_sub - tosub.reshape(ncol, len(pe_rng))
+    
+        return gksp

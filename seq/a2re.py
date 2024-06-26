@@ -30,6 +30,7 @@ class A2RE(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='shimming', string='线性匀场 [x, y, z]', val=[210.0, 210.0, 895.0], field='OTH')
         self.addParameter(key='gFactor', string='梯度效率 [x, y, z]', val=[1.0, 1.0, 1.0], field='OTH')
         self.addParameter(key='readPadding', string='读出边距 (μs)', val=1.0, field='OTH')
+        self.addParameter(key='emiCh', string='噪声通道', val=[2, 3], field='OTH')
 
     def sequenceInfo(self):
         print("============ Averaging Acquisition with Relaxation Enhancement ============")
@@ -182,23 +183,49 @@ class A2RE(blankSeq.MRIBLANKSEQ):
             ksp = self.mapVals['ksp3d_ch%d' % ch] = np.mean(self.mapVals['mse3d_ch%d' % ch], 2)  # 对回波链取平均
             self.mapVals['img3d_ch%d' % ch] = ifftshift(ifftn(ifftshift(ksp)))  # 重建
 
-        img = self.mapVals['img3d_ch0']    
-        abs_img = np.abs(img)
+        ksp_editer = [self.editer(
+            self.mapVals['ksp3d_ch0'][layer],
+            [self.mapVals['ksp3d_ch%d' % ch][layer] for ch in self.emiCh]
+        ) for layer in range(self.nPoints[2])]
+        img_editer = ifftshift(ifftn(ifftshift(ksp_editer)))
+        self.mapVals['img3d_editer'] = img_editer
+
+        img = self.mapVals['img3d_ch0']
+        img_result = np.array([img, img_editer]).transpose(1, 0, 2, 3).reshape(self.nPoints[2], -1, self.nPoints[0])
+        print('图像尺寸: ', img_result.shape)
         self.output = self.out = [{
             'widget': 'image',
-            'data': np.concatenate((abs_img/np.max(abs_img)*2 - 1, np.angle(img) / np.pi)),
+            'data': np.abs(img_result),
             'xLabel': '相位编码',
             'yLabel': '频率编码',
-            'title': '幅值图与相位图',
+            'title': '幅值图',
             'row': 0,
             'col': 0
+        }, {
+            'widget': 'image',
+            'data': np.angle(img_result),
+            'xLabel': '相位编码',
+            'yLabel': '频率编码',
+            'title': '相位图',
+            'row': 0,
+            'col': 1
         }, {
             'widget': 'image',
             'data': np.log(np.abs(self.mapVals['ksp3d_ch0'])),
             'xLabel': 'mV',
             'yLabel': 'ms',
             'title': 'k-Space',
-            'row': 0,
+            'row': 1,
+            'col': 0
+        }, {
+            'widget': 'image',
+            'data': np.abs([
+                self.mapVals['emi3d_ch%d' % ch] for ch in self.emiCh
+            ]).reshape(-1, self.nPoints[1], self.nPoints[0]),
+            'xLabel': 'mV',
+            'yLabel': 'ms',
+            'title': '噪声',
+            'row': 1,
             'col': 1
         }]
         self.saveRawData()

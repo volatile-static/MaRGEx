@@ -10,6 +10,9 @@
 import numpy as np
 
 gFactor = [0.025, 0.040, 0.035] # (X, Y, Z) in T/m/o.u.
+max_grad = 80  # mT/m
+max_slew_rate = 50e-3  # mT/m/ms
+grad_raster_time = 30e-6  # s
 grad_rise_time = 400e-6 # s, time for gradient ramps
 grad_steps = 16 # steps to gradient ramps
 gammaB = 42.56e6 # Hz/T, Gyromagnetic ratio
@@ -32,7 +35,7 @@ antenna_dict = {
 }
 fov = [20.0, 20.0, 20.0]
 dfov = [0.0, 0.0, 0.0]
-bash_path = "D:\Archivos de Programa\Git\git-bash.exe" # use "gnome-terminal" for genome linux
+bash_path = "D:\Git\git-bash.exe" # use "gnome-terminal" for genome linux
 rp_ip_address = "192.168.5.20"
 rp_version = "rp-122"
 lnaGain = 50 # dB

@@ -31,8 +31,10 @@ import seq.localizer as localizer
 import seq.MRID as mrid
 import seq.tsePrescan as tsePrescan
 import seq.PETRAphysio as PETRAphysio
+import seq.larmor_raw as larmor_raw
 import seq.mse as mse
 from seq import a2re, fe3d, b0map
+import seq.pulseq_reader as pulseq_reader
 
 class RARE(rare.RARE):
     def __init__(self): super(RARE, self).__init__()
@@ -122,6 +124,7 @@ defaultsequences = {
     'RAREprotocols': RAREProtocols(),
     'RAREprotocolsTest': RAREProtocolsTest(),
     'RARE': RARE(),
+    'PulseqReader': pulseq_reader.PulseqReader(),
     'MRID': MRID(),
     'Noise': Noise(),
     'RabiFlops': RabiFlops(),
@@ -144,6 +147,7 @@ defaultsequences = {
     'SWEEP': SWEEP(),
     'testSE': testSE(),
     'PETRAphysio': PETRAphysio(),
+    'LarmorRaw': larmor_raw.LarmorRaw(),
     'MSE': MSE(),
     'B0Map': b0map.B0Map(),
     'A2RE': a2re.A2RE(),

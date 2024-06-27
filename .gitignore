@@ -1,4 +1,5 @@
 __pycache__/
+sphinx/_build/
 *.py[cod]
 experiments
 calibration
@@ -15,5 +16,7 @@ marcos_fpga_rp-122.bit.bin
 marcos_fpga_rp-122.dtbo
 readme.org
 autotuning/autotuning_arduino/autotuning_arduino.ino
+*.seq
+*.log
 ps_interpreter.log
 sequence.seq

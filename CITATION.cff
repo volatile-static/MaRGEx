@@ -1,0 +1,17 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: MaRGEx
+message: Extended MaRCoS Console
+type: software
+authors:
+  - given-names: volatile
+    family-names: static
+    email: volatile_static@zju.edu.cn
+    affiliation: Zhejiang University
+repository-code: 'https://github.com/volatile-static/MaRGEx'
+abstract: The extended MaRCoS console.
+keywords:
+  - MRI
+license: GPL-3.0

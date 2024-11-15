@@ -33,8 +33,8 @@ class B1calibration(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='rfExPhase', string='RF Exc Phase', val=0, field='RF')
 
     def sequenceInfo(self):
-        print(" ")
-        print("B1calibration")
+        
+        print("B1calibration\n")
 
     def sequenceTime(self):
         nScans = self.mapVals['nScans']
@@ -108,10 +108,10 @@ class B1calibration(blankSeq.MRIBLANKSEQ):
         self.mapVals['bwReal'] = bwReal  # MHz
         createSequence()
         if self.floDict2Exp():
-            print("\nSequence waveforms loaded successfully")
+            print("Sequence waveforms loaded successfully")
             pass
         else:
-            print("\nERROR: sequence waveforms out of hardware bounds")
+            print("ERROR: sequence waveforms out of hardware bounds")
             return False
 
         if plotSeq == 0:

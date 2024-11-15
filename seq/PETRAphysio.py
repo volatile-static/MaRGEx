@@ -57,7 +57,7 @@ class PETRAphysio(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='enableRadial', string='enableRadial', val=1, field='OTH')
         self.addParameter(key='enableSinglePoints', string='enableSinglePoints', val=1, field='OTH')
     def sequenceInfo(self):
-            print(" ")
+            
             print("PETRA sequence")
             print("Author: Teresa Guallart-Naval")
             print("Contact: tguanav@i3m.upv.es")
@@ -266,7 +266,7 @@ class PETRAphysio(blankSeq.MRIBLANKSEQ):
             return()
 
         # RADIAL ACQUISITION
-        print('\nRunning...')
+        print('Running...')
         if self.enableRadial == 1:
             self.expt = ex.Experiment(lo_freq=self.larmorFreq, rx_t=self.samplingPeriod, init_gpa=False)
             createSequence(self.radialGradients, 'Radial')
@@ -275,7 +275,7 @@ class PETRAphysio(blankSeq.MRIBLANKSEQ):
                 print("Sequence waveforms loaded successfully")
                 pass
             else:
-                print("\nERROR: sequence waveforms out of hardware bounds")
+                print("ERROR: sequence waveforms out of hardware bounds")
                 return False
             if plotSeq == 0:
                 for i in range(self.nScans):
@@ -309,7 +309,7 @@ class PETRAphysio(blankSeq.MRIBLANKSEQ):
                 print("Sequence waveforms loaded successfully")
                 pass
             else:
-                print("\nERROR: sequence waveforms out of hardware bounds")
+                print("ERROR: sequence waveforms out of hardware bounds")
                 return False
             if plotSeq == 0:
                 for i in range(self.nScans):
@@ -343,11 +343,9 @@ class PETRAphysio(blankSeq.MRIBLANKSEQ):
 
     def sequenceAnalysis(self, mode=None):
         self.mode = mode
-        # Save results
-        self.saveRawData()
 
         # REGRIDDING
-        print('\nRegridding...')
+        print('Regridding...')
         self.kAcquired4D = self.mapVals['kAcquired4D']
         kSpaceInterReal = griddata(self.kAcquired4D[:, 0:3], np.real(self.kAcquired4D[:, 3]), self.kCartesianFull,
                                    method='linear', fill_value=0, rescale=False)
@@ -394,6 +392,9 @@ class PETRAphysio(blankSeq.MRIBLANKSEQ):
         result2['col'] = 1
 
         self.output = [result1, result2]
+
+        # Save results
+        self.saveRawData()
 
         if mode == 'Standalone':
             self.plotResults()

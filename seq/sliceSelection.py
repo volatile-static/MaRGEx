@@ -33,12 +33,12 @@ class SliceSelection(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='shimming', string='Shimming', val=[-70, -90, 10], field='OTH')
 
     def sequenceInfo(self):
-        print(" ")
+        
         print("Slice selection")
         print("Author: Dr. J.M. Algarín")
         print("Contact: josalggui@i3m.upv.es")
         print("mriLab @ i3M, CSIC, Spain")
-        print("Sweep parameters related to slice selection")
+        print("Sweep parameters related to slice selection\n")
 
     def sequenceTime(self):
         nScans = self.mapVals['nScans']

@@ -38,12 +38,12 @@ class InversionRecovery(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='nSteps', string='Number of steps', val=10, field='SEQ')
 
     def sequenceInfo(self):
-        print(" ")
+        
         print("Inversion Recovery")
         print("Author: Dr. J.M. Algarín")
         print("Contact: josalggui@i3m.upv.es")
         print("mriLab @ i3M, CSIC, Spain")
-        print("This sequence runs Inversion Recovery and sweep the inversion time")
+        print("This sequence runs Inversion Recovery and sweep the inversion time\n")
 
     def sequenceTime(self):
         nScans = self.mapVals['nScans']
@@ -167,10 +167,10 @@ class InversionRecovery(blankSeq.MRIBLANKSEQ):
         self.mapVals['bw'] = bw * 1e6
         createSequence()
         if self.floDict2Exp():
-            print("\nSequence waveforms loaded successfully")
+            print("Sequence waveforms loaded successfully")
             pass
         else:
-            print("\nERROR: sequence waveforms out of hardware bounds")
+            print("ERROR: sequence waveforms out of hardware bounds")
             return False
         if plotSeq:
             self.expt.__del__()

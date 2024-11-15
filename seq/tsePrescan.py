@@ -55,11 +55,11 @@ class TSEPRE(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='rdPreemphasis', string='Rd preemphasis', val=1.0, field='OTH')
 
     def sequenceInfo(self):
-        print(" ")
+        
         print("Turbo Spin Echo for eddy currents calibration")
         print("Author: Dr. J.M. Algarín")
         print("Contact: josalggui@i3m.upv.es")
-        print("mriLab @ i3M, CSIC, Spain")
+        print("mriLab @ i3M, CSIC, Spain\n")
 
     def sequenceTime(self):
         nScans = self.mapVals['nScans']
@@ -158,10 +158,10 @@ class TSEPRE(blankSeq.MRIBLANKSEQ):
         # Save instructions into MaRCoS if not a demo
         if not self.demo:
             if self.floDict2Exp():
-                print("\nSequence waveforms loaded successfully")
+                print("Sequence waveforms loaded successfully")
                 pass
             else:
-                print("\nERROR: sequence waveforms out of hardware bounds")
+                print("ERROR: sequence waveforms out of hardware bounds")
                 return False
 
         # Run scans

@@ -29,6 +29,16 @@ import configs.hw_config as hw # Import the scanner hardware config
 import configs.units as units
 import seq.mriBlankSeq as blankSeq  # Import the mriBlankSequence for any new sequence.
 
+from datetime import date
+from datetime import datetime
+import ismrmrd
+import ismrmrd.xsd
+import datetime
+import ctypes
+import matplotlib
+import xml.etree.ElementTree as ET
+from scipy.io import loadmat
+
 #*********************************************************************************
 #*********************************************************************************
 #*********************************************************************************
@@ -38,7 +48,7 @@ class RARE(blankSeq.MRIBLANKSEQ):
         super(RARE, self).__init__()
         # Input the parameters
         self.addParameter(key='seqName', string='RAREInfo', val='RARE')
-        self.addParameter(key='nScans', string='Number of scans', val=1, field='IM')
+        self.addParameter(key='nScans', string='Number of scans', val=1, field='IM') ## number of scans 
         self.addParameter(key='freqOffset', string='Larmor frequency offset (kHz)', val=0.0, units=units.kHz, field='RF')
         self.addParameter(key='rfExFA', string='Excitation flip angle (º)', val=90, field='RF')
         self.addParameter(key='rfReFA', string='Refocusing flip angle (º)', val=180, field='RF')
@@ -50,13 +60,13 @@ class RARE(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=300., units=units.ms, field='SEQ', tip="0 to ommit this pulse")
         self.addParameter(key='fov', string='FOV[x,y,z] (cm)', val=[15.0, 15.0, 15.0], units=units.cm, field='IM')
         self.addParameter(key='dfov', string='dFOV[x,y,z] (mm)', val=[0.0, 0.0, 0.0], units=units.mm, field='IM', tip="Position of the gradient isocenter")
-        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[40, 40, 1], field='IM')
+        self.addParameter(key='nPoints', string='nPoints[rd, ph, sl]', val=[40, 40, 1], field='IM') 
         self.addParameter(key='angle', string='Angle (º)', val=0.0, field='IM')
         self.addParameter(key='rotationAxis', string='Rotation axis', val=[0, 0, 1], field='IM')
-        self.addParameter(key='etl', string='Echo train length', val=5, field='SEQ')
+        self.addParameter(key='etl', string='Echo train length', val=5, field='SEQ') ## nm of peaks in 1 repetition
         self.addParameter(key='acqTime', string='Acquisition time (ms)', val=2.0, units=units.ms, field='SEQ')
         self.addParameter(key='axesOrientation', string='Axes[rd,ph,sl]', val=[0, 1, 2], field='IM', tip="0=x, 1=y, 2=z")
-        self.addParameter(key='axesEnable', string='Axes enable', val=[1, 1, 0], field='IM', tip="Use 0 for directions with matrix size 1, use 1 otherwise.")
+        self.addParameter(key='axesEnable', string='Axes enable', val=[1, 1, 0], tip="Use 0 for directions with matrix size 1, use 1 otherwise.")
         self.addParameter(key='sweepMode', string='Sweep mode', val=1, field='SEQ', tip="0: sweep from -kmax to kmax. 1: sweep from 0 to kmax. 2: sweep from kmax to 0")
         self.addParameter(key='rdGradTime', string='Rd gradient time (ms)', val=2.5, units=units.ms, field='OTH')
         self.addParameter(key='rdDephTime', string='Rd dephasing time (ms)', val=1.0, units=units.ms, field='OTH')
@@ -68,9 +78,13 @@ class RARE(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='parFourierFraction', string='Partial fourier fraction', val=1.0, field='OTH', tip="Fraction of k planes aquired in slice direction")
         self.addParameter(key='echo_shift', string='Echo time shift', val=0.0, units=units.us, field='OTH', tip='Shift the gradient echo time respect to the spin echo time.')
         self.addParameter(key='unlock_orientation', string='Unlock image orientation', val=0, field='OTH', tip='0: Images oriented according to standard. 1: Image raw orientation')
-
+        self.acq = ismrmrd.Acquisition()
+        self.img = ismrmrd.Image()
+        self.header= ismrmrd.xsd.ismrmrdHeader() 
+        
+       
     def sequenceInfo(self):
-        print("\n3D RARE sequence")
+        print("3D RARE sequence")
         print("Author: Dr. J.M. Algarín")
         print("Contact: josalggui@i3m.upv.es")
         print("mriLab @ i3M, CSIC, Spain \n")
@@ -90,7 +104,7 @@ class RARE(blankSeq.MRIBLANKSEQ):
         rfExAmp = rfExFA / (rfExTime * hw.b1Efficiency)
         rfReAmp = rfReFA / (rfReTime * hw.b1Efficiency)
         if rfExAmp>1 or rfReAmp>1:
-            print("RF amplitude is too high, try with longer RF pulse time.")
+            print("ERROR: RF amplitude is too high, try with longer RF pulse time.")
             return(0)
 
         seqTime = nPoints[1]/etl*nPoints[2]*repetitionTime*1e-3*nScans*parFourierFraction/60
@@ -121,11 +135,20 @@ class RARE(blankSeq.MRIBLANKSEQ):
         self.dfov = self.dfov[self.axesOrientation]
         self.fov = self.fov[self.axesOrientation]
 
+        # Check for used axes
+        axesEnable = []
+        for ii in range(3):
+            if self.nPoints[ii] == 1:
+                axesEnable.append(0)
+            else:
+                axesEnable.append(1)
+        self.mapVals['axesEnable'] = axesEnable
+
         # Miscellaneous
         self.freqOffset = self.freqOffset*1e6 # MHz
         gradRiseTime = hw.grad_rise_time
         gSteps = hw.grad_steps
-        addRdPoints = 10             # Initial rd points to avoid artifact at the begining of rd
+        addRdPoints = 10 # Initial rd points to avoid artifact at the begining of rd
         randFactor = 0e-3                        # Random amplitude to add to the phase gradients
         resolution = self.fov/self.nPoints
         rfExAmp = self.rfExFA/(self.rfExTime*1e6*hw.b1Efficiency)*np.pi/180
@@ -137,9 +160,9 @@ class RARE(blankSeq.MRIBLANKSEQ):
         self.mapVals['randFactor'] = randFactor
         self.mapVals['addRdPoints'] = addRdPoints
         self.mapVals['larmorFreq'] = hw.larmorFreq + self.freqOffset
-
+        self.addRdPoints = addRdPoints
         if rfExAmp>1 or rfReAmp>1:
-            print("RF amplitude is too high, try with longer RF pulse time.")
+            print("ERROR: RF amplitude is too high, try with longer RF pulse time.")
             return(0)
 
         # Matrix size
@@ -171,9 +194,9 @@ class RARE(blankSeq.MRIBLANKSEQ):
         self.mapVals['phGradTime'] = self.phGradTime*1e3 # ms
 
         # Max gradient amplitude
-        rdGradAmplitude = self.nPoints[0]/(hw.gammaB*self.fov[0]*self.acqTime)*self.axesEnable[0]
-        phGradAmplitude = nPH/(2*hw.gammaB*self.fov[1]*(self.phGradTime+gradRiseTime))*self.axesEnable[1]
-        slGradAmplitude = nSL/(2*hw.gammaB*self.fov[2]*(self.phGradTime+gradRiseTime))*self.axesEnable[2]
+        rdGradAmplitude = self.nPoints[0]/(hw.gammaB*self.fov[0]*self.acqTime)*axesEnable[0]
+        phGradAmplitude = nPH/(2*hw.gammaB*self.fov[1]*(self.phGradTime+gradRiseTime))*axesEnable[1]
+        slGradAmplitude = nSL/(2*hw.gammaB*self.fov[2]*(self.phGradTime+gradRiseTime))*axesEnable[2]
         self.mapVals['rdGradAmplitude'] = rdGradAmplitude
         self.mapVals['phGradAmplitude'] = phGradAmplitude
         self.mapVals['slGradAmplitude'] = slGradAmplitude
@@ -187,7 +210,7 @@ class RARE(blankSeq.MRIBLANKSEQ):
         slGradients = np.linspace(-slGradAmplitude,slGradAmplitude,num=nSL,endpoint=False)
 
         # Now fix the number of slices to partailly acquired k-space
-        nSL = (int(self.nPoints[2]/2)+parAcqLines)*self.axesEnable[2]+(1-self.axesEnable[2])
+        nSL = (int(self.nPoints[2]/2)+parAcqLines)*axesEnable[2]+(1-axesEnable[2])
 
         # Add random displacemnt to phase encoding lines
         for ii in range(nPH):
@@ -230,11 +253,11 @@ class RARE(blankSeq.MRIBLANKSEQ):
             self.iniSequence(20, self.shimming)
             while acqPoints+self.etl*nRD<=hw.maxRdPoints and orders<=hw.maxOrders and repeIndexGlobal<nRepetitions:
                 # Initialize time
-                tEx = 20e3+self.repetitionTime*repeIndex+self.inversionTime+self.preExTime
+                tEx = self.repetitionTime+self.repetitionTime*repeIndex+self.inversionTime+self.preExTime
 
                 # First I do a noise measurement.
                 if repeIndex==0:
-                    t0 = tEx-self.preExTime-self.inversionTime-self.acqTime-2*addRdPoints/BW-self.rfExTime/2-hw.blkTime
+                    t0 = 40
                     self.rxGate(t0, self.acqTime+2*addRdPoints/BW)
                     acqPoints += nRD
 
@@ -357,7 +380,7 @@ class RARE(blankSeq.MRIBLANKSEQ):
                 repeIndex+=1 # Update the repeIndex after the ETL
 
             # Turn off the gradients after the end of the batch
-            self.endSequence(repeIndex*self.repetitionTime)
+            self.endSequence((repeIndex+1)*self.repetitionTime)
 
             # Return the output variables
             return(phIndex, slIndex, lnIndex, repeIndexGlobal, acqPoints)
@@ -376,7 +399,7 @@ class RARE(blankSeq.MRIBLANKSEQ):
         self.echo_shift = self.echo_shift*1e6
         nRepetitions = int(nSL*nPH/self.etl)
         scanTime = nRepetitions*self.repetitionTime
-        self.mapVals['scanTime'] = scanTime*nSL*1e-6
+        self.mapVals['Scan Time (s)'] = scanTime*self.nScans*1e-6
 
         # Create full sequence
         # Run the experiment
@@ -410,21 +433,21 @@ class RARE(blankSeq.MRIBLANKSEQ):
                                                                             slIndex=slIndex,
                                                                             lnIndex=lnIndex,
                                                                             repeIndexGlobal=repeIndexGlobal)
+
             # Save instructions into MaRCoS if not a demo
-            if not self.demo:
-                if self.floDict2Exp(rewrite=nBatches==1):
-                    print("\nSequence waveforms loaded successfully")
-                    pass
-                else:
-                    print("\nERROR: sequence waveforms out of hardware bounds")
-                    return False
+            if self.floDict2Exp(rewrite=nBatches==1, demo=self.demo):
+                print("Sequence waveforms loaded successfully")
+                pass
+            else:
+                print("ERROR: sequence waveforms out of hardware bounds")
+                return False
 
             repeIndexArray = np.concatenate((repeIndexArray, np.array([repeIndexGlobal-1])), axis=0)
             acqPointsPerBatch.append(aa)
 
             if not plotSeq:
                 for ii in range(self.nScans):
-                    print("\nBatch %i, scan %i running..." % (nBatches, ii+1))
+                    print("Batch %i, scan %i running..." % (nBatches, ii+1))
                     if not self.demo:
                         acq_points = 0
                         while acq_points != (aa * hw.oversamplingFactor):
@@ -433,7 +456,9 @@ class RARE(blankSeq.MRIBLANKSEQ):
                             acq_points = np.size(rxd['rx0'])
                             print("Acquired points = %i" % acq_points)
                             print("Expected points = %i" % (aa * hw.oversamplingFactor))
-                        print("Batch %i, scan %i ready!")
+                            if acq_points != (aa * hw.oversamplingFactor):
+                                print("WARNING: missed points. Repeating batch...")
+                        print("Batch %i, scan %i ready!" % (nBatches, ii+1))
                     else:
                         rxd = {}
                         rxd['rx0'] = np.random.randn(aa*hw.oversamplingFactor) + 1j * np.random.randn(aa*hw.oversamplingFactor)
@@ -450,12 +475,12 @@ class RARE(blankSeq.MRIBLANKSEQ):
             # elif plotSeq and standalone:
             #     self.plotSequence()
 
-            if not self.demo: self.expt.__del__()
+            if not self.demo: self.expt.__del__() 
         del aa
 
         if not plotSeq:
             acqPointsPerBatch= (np.array(acqPointsPerBatch)-self.etl*nRD*(self.dummyPulses>0)-nRD)*self.nScans
-            print('\nScans ready!')
+            print('Scans ready!')
             self.mapVals['noiseData'] = noise
             self.mapVals['overData'] = overData
 
@@ -472,10 +497,12 @@ class RARE(blankSeq.MRIBLANKSEQ):
 
             # Generate dataFull
             dataFull = sig.decimate(overData, hw.oversamplingFactor, ftype='fir', zero_phase=True)
+        
             if nBatches>1:
                 dataFullA = dataFull[0:sum(acqPointsPerBatch[0:-1])]
                 dataFullB = dataFull[sum(acqPointsPerBatch[0:-1])::]
-
+                
+            
             # Reorganize dataFull
             dataProv = np.zeros([self.nScans,nSL*nPH*nRD])
             dataProv = dataProv+1j*dataProv
@@ -490,6 +517,9 @@ class RARE(blankSeq.MRIBLANKSEQ):
                 else:
                     dataProv[scan, :] = np.reshape(dataFull[:,scan,:,:],-1)
             dataFull = np.reshape(dataProv,-1)
+            
+            # Save dataFull to save it in .h5 ########################################################""
+            self.dataFullmat = dataFull
 
             # Get index for krd = 0
             # Average data
@@ -497,19 +527,21 @@ class RARE(blankSeq.MRIBLANKSEQ):
             dataProv = np.average(dataProv, axis=0)
             # Reorganize the data acording to sweep mode
             dataProv = np.reshape(dataProv, (nSL, nPH, nRD))
+            
             dataTemp = dataProv*0
             for ii in range(nPH):
                 dataTemp[:, ind[ii], :] = dataProv[:,  ii, :]
             dataProv = dataTemp
-            # Check where is krd = 0
-            dataProv = dataProv[int(self.nPoints[2]/2), int(nPH/2), :]
+           
+
+            dataProv = dataProv[int(self.nPoints[2]/2), int(nPH/2), :] 
             indkrd0 = np.argmax(np.abs(dataProv))
             if indkrd0 < nRD/2-addRdPoints or indkrd0 > nRD/2+addRdPoints:
                 indkrd0 = int(nRD/2)
 
             # Get individual images
             dataFull = np.reshape(dataFull, (self.nScans, nSL, nPH, nRD))
-            dataFull = dataFull[:, :, :, indkrd0-int(self.nPoints[0]/2):indkrd0+int(self.nPoints[0]/2)]
+            dataFull = dataFull[:, :, :, indkrd0-int(self.nPoints[0]/2):indkrd0+int(self.nPoints[0]/2)] 
             dataTemp = dataFull*0
             for ii in range(nPH):
                 dataTemp[:, :, ind[ii], :] = dataFull[:, :,  ii, :]
@@ -517,7 +549,8 @@ class RARE(blankSeq.MRIBLANKSEQ):
             imgFull = dataFull*0
             for ii in range(self.nScans):
                 imgFull[ii, :, :, :] = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(dataFull[ii, :, :, :])))
-            self.mapVals['dataFull'] = dataFull
+            self.mapVals['dataFull'] = dataFull 
+            self.mapVals['imgFull'] = imgFull 
 
             # Average data
             data = np.average(dataFull, axis=0)
@@ -543,7 +576,7 @@ class RARE(blankSeq.MRIBLANKSEQ):
             #     data = self.myPhantom()
 
             # Fix the position of the sample according to dfov
-            kMax = np.array(self.nPoints)/(2*np.array(self.fov))*np.array(self.axesEnable)
+            kMax = np.array(self.nPoints)/(2*np.array(self.fov))*np.array(axesEnable)
             kRD = self.time_vector*hw.gammaB*rdGradAmplitude
             kSL = np.linspace(-kMax[2],kMax[2],num=self.nPoints[2],endpoint=False)
             kPH, kSL, kRD = np.meshgrid(kPH, kSL, kRD)
@@ -563,7 +596,7 @@ class RARE(blankSeq.MRIBLANKSEQ):
             kSL = np.reshape(kSL, (self.nPoints[0]*self.nPoints[1]*self.nPoints[2], 1))
             data = np.reshape(data, (self.nPoints[0]*self.nPoints[1]*self.nPoints[2], 1))
             self.mapVals['kMax'] = kMax
-            self.mapVals['sampled'] = np.concatenate((kRD, kPH, kSL, data), axis=1)
+            self.mapVals['sampled'] = np.concatenate((kRD, kPH, kSL, data), axis=1) ## this is what is taken from .mat to show the image
             self.mapVals['sampledCartesian'] = self.mapVals['sampled']  # To sweep
             data = np.reshape(data, (self.nPoints[2], self.nPoints[1], self.nPoints[0]))
 
@@ -746,16 +779,19 @@ class RARE(blankSeq.MRIBLANKSEQ):
         self.mapVals['dfov'] = np.array(self.mapVals['dfov'])
         self.mapVals['dfov'][self.axesOrientation] = self.dfov.reshape(-1)
         self.mapVals['dfov'] = list(self.mapVals['dfov'])
-        print("\nSaved dfov:")
-        print(self.mapVals['dfov'])
 
         # Save results
         self.saveRawData()
+        self.save_ismrmrd()
+        
 
         self.mapVals['angle'] = 0.0
-        self.sequenceList['RARE'].mapVals['angle'] = 0.0
         self.mapVals['dfov'] = [0.0, 0.0, 0.0]
-        self.sequenceList['RARE'].mapVals['dfov'] = [0.0, 0.0, 0.0]
+        try:
+            self.sequenceList['RARE'].mapVals['angle'] = 0.0
+            self.sequenceList['RARE'].mapVals['dfov'] = [0.0, 0.0, 0.0]
+        except:
+            pass
         hw.dfov = [0.0, 0.0, 0.0]
 
         if self.mode == 'Standalone':
@@ -841,19 +877,258 @@ class RARE(blankSeq.MRIBLANKSEQ):
         res2 = linregress(rd_2, phase2)
 
         # Print info
-        print('\nInfo from dummy pulses')
+        print('Info from dummy pulses:')
         print('Phase difference at iso-center: %0.1f º' % ((res2.intercept - res1.intercept) * 180 / np.pi))
         print('Phase slope difference %0.3f rads/m' % (res2.slope - res1.slope))
         
+        
+    def save_ismrmrd(self):
+        """
+        Save the current instance's data in ISMRMRD format.
 
-if __name__=="__main__":
+        This method saves the raw data, header information, and reconstructed images to an HDF5 file
+        using the ISMRMRD (Image Storage and Reconstruction format for MR Data) format.
+
+        Steps performed:
+        1. Generate a timestamp-based filename and directory path for the output file.
+        2. Initialize the ISMRMRD dataset with the generated path.
+        3. Populate the header and write the XML header to the dataset. Informations can be added.
+        4. Reshape the raw data matrix and iterate over scans, slices, and phases to write each acquisition. WARNING : RARE sequence follows ind order to fill the k-space.
+        5. Set acquisition flags and properties.
+        6. Append the acquisition data to the dataset.
+        7. Reshape and save the reconstructed images.
+        8. Close the dataset.
+
+        Attribute:
+        - self.data_full_mat (numpy.array): Full matrix of raw data to be reshaped and saved.
+
+        Returns:
+        None. It creates an HDF5 file with the ISMRMRD format.
+        """
+        
+        directory_rmd = self.directory_rmd
+        name = datetime.datetime.now()
+        name_string = name.strftime("%Y.%m.%d.%H.%M.%S.%f")[:-3]
+        self.mapVals['name_string'] = name_string
+        if hasattr(self, 'raw_data_name'):
+            file_name = "%s.%s" % (self.raw_data_name, name_string)
+        else:
+            self.raw_data_name = self.mapVals['seqName']
+            file_name = "%s.%s" % (self.mapVals['seqName'], name_string)
+            
+        path= "%s/%s.h5" % (directory_rmd, file_name)
+        
+        dset = ismrmrd.Dataset(path, f'/dataset', True) # Create the dataset
+        
+        nScans = self.mapVals['nScans']
+        nPoints = np.array(self.mapVals['nPoints'])
+        etl = self.mapVals['etl']
+        nRD = self.nPoints[0]
+        nPH = self.nPoints[1]
+        nSL = self.nPoints[2]
+        ind = self.getIndex(self.etl, nPH, self.sweepMode)
+        nRep = (nPH//etl)*nSL
+        bw = self.mapVals['bw']
+        
+        axesOrientation = self.axesOrientation
+        axesOrientation_list = axesOrientation.tolist()
+
+        read_dir = [0, 0, 0]
+        phase_dir = [0, 0, 0]
+        slice_dir = [0, 0, 0]
+
+        read_dir[axesOrientation_list.index(0)] = 1
+        phase_dir[axesOrientation_list.index(1)] = 1
+        slice_dir[axesOrientation_list.index(2)] = 1
+        
+        # Experimental Conditions field
+        exp = ismrmrd.xsd.experimentalConditionsType() 
+        magneticFieldStrength = hw.larmorFreq*1e6/hw.gammaB
+        exp.H1resonanceFrequency_Hz = hw.larmorFreq
+
+        self.header.experimentalConditions = exp 
+
+        # Acquisition System Information field
+        sys = ismrmrd.xsd.acquisitionSystemInformationType() 
+        sys.receiverChannels = 1 
+        self.header.acquisitionSystemInformation = sys
+
+
+        # Encoding field can be filled if needed
+        encoding = ismrmrd.xsd.encodingType()  
+        encoding.trajectory = ismrmrd.xsd.trajectoryType.CARTESIAN
+        #encoding.trajectory =ismrmrd.xsd.trajectoryType[data.processing.trajectory.upper()]
+
+        # # encoded and recon spaces 
+        # efov = ismrmrd.xsd.fieldOfViewMm()  
+        # efov.x =  
+        # efov.y =
+        # efov.z = 
+
+        # rfov = ismrmrd.xsd.fieldOfViewMm() 
+        # rfov.x = 
+        # rfov.y = 
+        # rfov.z = 
+
+        # ematrix = ismrmrd.xsd.matrixSizeType()
+        # rmatrix = ismrmrd.xsd.matrixSizeType()
+
+        # ematrix.x = 
+        # ematrix.y = 
+        # ematrix.z = 
+        # rmatrix.x = 
+        # rmatrix.y = 
+        # rmatrix.z = 
+
+        # espace = ismrmrd.xsd.encodingSpaceType() 
+        # espace.matrixSize = ematrix
+        # espace.fieldOfView_mm = efov
+        # rspace = ismrmrd.xsd.encodingSpaceType()
+        # rspace.matrixSize = rmatrix
+        # rspace.fieldOfView_mm = rfov
+        
+        # encoding.encodedSpace = espace
+        # encoding.reconSpace = rspace
+
+        # Encoding limits field can be filled if needed
+        
+        # limits = ismrmrd.xsd.encodingLimitsType()
+        # limits1 = ismrmrd.xsd.limitType()
+        # limits1.minimum = 
+        # limits1.center = 
+        # limits1.maximum = 
+        # limits.kspace_encoding_step_1 = limits1
+
+        # limits_rep = ismrmrd.xsd.limitType()
+        # limits_rep.minimum = 
+        # limits_rep.center = 
+        # limits_rep.maximum = 
+        # limits.repetition = limits_rep
+
+        # limits_rest = ismrmrd.xsd.limitType()
+        # limits_rest.minimum = 
+        # limits_rest.center = 
+        # limits_rest.maximum =
+        # limits.kspace_encoding_step_0 = 
+        # limits.slice = 
+        # limits.average =
+        # limits.contrast =
+        # limits.kspaceEncodingStep2 = 
+        # limits.phase =  
+        # limits.segment = 
+        # limits.set =
+
+        # encoding.encodingLimits = limits
+        # self.header.encoding.append(encoding)
+        
+        dset.write_xml_header(self.header.toXML()) # Write the header to the dataset
+                
+        
+        
+        new_data = np.zeros((nPH * nSL * nScans, nRD + 2*self.addRdPoints))
+        new_data = np.reshape(self.dataFullmat, (nScans, nSL, nPH, nRD+ 2*self.addRdPoints))
+        
+        counter=0  
+        for scan in range(nScans):
+            for slice_idx in range(nSL):
+                for phase_idx in range(nPH):
+                    
+                    line = new_data[scan, slice_idx, phase_idx, :]
+                    line2d = np.reshape(line, (1, nRD+2*self.addRdPoints))
+                    acq = ismrmrd.Acquisition.from_array(line2d, None)
+                    
+                    index_in_repetition = phase_idx % etl
+                    current_repetition = (phase_idx // etl) + (slice_idx * (nPH // etl))
+                    
+                    acq.clearAllFlags()
+                    
+                    if index_in_repetition == 0: 
+                        acq.setFlag(ismrmrd.ACQ_FIRST_IN_CONTRAST)
+                    elif index_in_repetition == etl - 1:
+                        acq.setFlag(ismrmrd.ACQ_LAST_IN_CONTRAST)
+                    
+                    if ind[phase_idx]== 0:
+                        acq.setFlag(ismrmrd.ACQ_FIRST_IN_PHASE)
+                    elif ind[phase_idx] == nPH - 1:
+                        acq.setFlag(ismrmrd.ACQ_LAST_IN_PHASE)
+                    
+                    if slice_idx == 0:
+                        acq.setFlag(ismrmrd.ACQ_FIRST_IN_SLICE)
+                    elif slice_idx == nSL - 1:
+                        acq.setFlag(ismrmrd.ACQ_LAST_IN_SLICE)
+                        
+                    if int(current_repetition) == 0:
+                        acq.setFlag(ismrmrd.ACQ_FIRST_IN_REPETITION)
+                    elif int(current_repetition) == nRep - 1:
+                        acq.setFlag(ismrmrd.ACQ_LAST_IN_REPETITION)
+                        
+                    if scan == 0:
+                        acq.setFlag(ismrmrd.ACQ_FIRST_IN_AVERAGE)
+                    elif scan == nScans-1:
+                        acq.setFlag(ismrmrd.ACQ_LAST_IN_AVERAGE)
+                    
+                    
+                    counter += 1 
+                    
+                    # +1 to start at 1 instead of 0
+                    acq.idx.repetition = int(current_repetition + 1)
+                    acq.idx.kspace_encode_step_1 = ind[phase_idx]+1 # phase
+                    acq.idx.slice = slice_idx + 1
+                    acq.idx.contrast = index_in_repetition + 1
+                    acq.idx.average = scan + 1 # scan
+                    
+                    acq.scan_counter = counter
+                    acq.discard_pre = self.addRdPoints
+                    acq.discard_post = self.addRdPoints
+                    acq.sample_time_us = 1/bw
+                    self.dfov = np.array(self.dfov)
+                    acq.position = (ctypes.c_float * 3)(*self.dfov.flatten())
+
+                    
+                    acq.read_dir = (ctypes.c_float * 3)(*read_dir)
+                    acq.phase_dir = (ctypes.c_float * 3)(*phase_dir)
+                    acq.slice_dir = (ctypes.c_float * 3)(*slice_dir)
+                    
+                    dset.append_acquisition(acq) # Append the acquisition to the dataset
+                        
+                        
+        image=self.mapVals['image3D']
+        image_reshaped = np.reshape(image, (nSL, nPH, nRD))
+        
+        for slice_idx in range (nSL): ## image3d does not have scan dimension
+            
+            image_slice = image_reshaped[slice_idx, :, :]
+            img = ismrmrd.Image.from_array(image_slice)
+            img.transpose = False
+            img.field_of_view = (ctypes.c_float * 3)(*(self.fov)*10) # mm
+           
+            img.position = (ctypes.c_float * 3)(*self.dfov)
+            
+            # img.data_type= 8 ## COMPLEX FLOAT
+            img.image_type = 5 ## COMPLEX
+            
+            
+            
+            img.read_dir = (ctypes.c_float * 3)(*read_dir)
+            img.phase_dir = (ctypes.c_float * 3)(*phase_dir)
+            img.slice_dir = (ctypes.c_float * 3)(*slice_dir)
+            
+            dset.append_image(f"image_raw", img) # Append the image to the dataset
+                
+        
+        dset.close()    
+
+
+if __name__ == '__main__': 
+
+        
     seq = RARE()
     seq.sequenceAtributes()
 
     # A
-    seq.sequenceRun(demo=True, plotSeq=True)
-    seq.sequencePlot(standalone=True)
+    seq.sequenceRun(plotSeq=False, demo=True)
+    # seq.sequencePlot(standalone=True)
 
-    # B
-    seq.sequenceRun(demo=True, plotSeq=False)
+    # # B
+    # seq.sequenceRun(demo=True, plotSeq=False)
     seq.sequenceAnalysis(mode='Standalone')

@@ -56,7 +56,7 @@ class RabiFlops(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='cal_method', string='Calibration method', val='FID', tip='FID or ECHO', field='OTH')
 
     def sequenceInfo(self):
-        print(" ")
+        
         print("Rabi Flops")
         print("Author: Dr. J.M. Algarín")
         print("Contact: josalggui@i3m.upv.es")
@@ -66,8 +66,8 @@ class RabiFlops(blankSeq.MRIBLANKSEQ):
         print("Set RF refocusing amplitude to 0.0 to get single excitation behavior")
         print("Set RF refocusing time to 0.0 to auto set the RF refocusing time:")
         print("-If Rephasing method = 0, refocusing amplitude is twice the excitation amplitude")
-        print("-If Rephasing method = 1, refocusing time is twice the excitation time")
-        print(" ")
+        print("-If Rephasing method = 1, refocusing time is twice the excitation time\n")
+        
 
     def sequenceTime(self):
         nScans = self.mapVals['nScans']
@@ -173,13 +173,12 @@ class RabiFlops(blankSeq.MRIBLANKSEQ):
 
         # Execute the experiment
         createSequence()
-        if not self.demo:
-            if self.floDict2Exp():
-                print("\nSequence waveforms loaded successfully")
-                pass
-            else:
-                print("\nERROR: sequence waveforms out of hardware bounds")
-                return False
+        if self.floDict2Exp(demo=self.demo):
+            print("Sequence waveforms loaded successfully")
+            pass
+        else:
+            print("ERROR: sequence waveforms out of hardware bounds")
+            return False
         if not plotSeq:
             if not self.demo:
                 rxd, msgs = self.expt.run()
@@ -235,7 +234,7 @@ class RabiFlops(blankSeq.MRIBLANKSEQ):
                 test = False
         piHalfTime = timeVector[n - 2] * 1e6  # us
         self.mapVals['piHalfTime'] = piHalfTime
-        print("\npi/2 pulse with RF amp = %0.2f a.u. and pulse time = %0.1f us" % (self.mapVals['rfExAmp'],
+        print("pi/2 pulse with RF amp = %0.2f a.u. and pulse time = %0.1f us" % (self.mapVals['rfExAmp'],
                                                                                    self.mapVals['piHalfTime']))
         hw.b1Efficiency = np.pi / 2 / (self.mapVals['rfExAmp'] * piHalfTime)
 
@@ -243,7 +242,7 @@ class RabiFlops(blankSeq.MRIBLANKSEQ):
         result1 = {'widget': 'curve',
                    'xData': timeVector * 1e6,
                    'yData': [np.abs(rabiFID), np.real(rabiFID), np.imag(rabiFID)],
-                   'xLabel': 'Time (ms)',
+                   'xLabel': 'Time (us)',
                    'yLabel': 'Signal amplitude (mV)',
                    'title': 'Rabi Flops with FID',
                    'legend': ['abs', 'real', 'imag'],
@@ -253,7 +252,7 @@ class RabiFlops(blankSeq.MRIBLANKSEQ):
         result2 = {'widget': 'curve',
                    'xData': timeVector * 1e6,
                    'yData': [np.abs(rabiEcho), np.real(rabiEcho), np.imag(rabiEcho)],
-                   'xLabel': 'Time (ms)',
+                   'xLabel': 'Time (us)',
                    'yLabel': 'Signal amplitude (mV)',
                    'title': 'Rabi Flops with Spin Echo',
                    'legend': ['abs', 'real', 'imag'],

@@ -52,11 +52,11 @@ class MRID(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='T2', string='T2 sample (ms)', val=1, field='SEQ')
 
     def sequenceInfo(self):
-        print(" ")
+        
         print("3D MRID sequence")
         print("Author: Jose Borreguero")
         print("Contact: pepe.morata@i3m.upv.es")
-        print("mriLab @ i3M, CSIC, Spain")
+        print("mriLab @ i3M, CSIC, Spain\n")
 
     def sequenceTime(self):
         return self.mapVals['repetition_time']*self.mapVals['n_diameter']*self.mapVals['nScans']*1e-3/60 #minutes
@@ -322,10 +322,10 @@ class MRID(blankSeq.MRIBLANKSEQ):
 
             # Instructions to the red pitaya
             if self.floDict2Exp():
-                print("\nSequence waveforms loaded successfully")
+                print("Sequence waveforms loaded successfully")
                 pass
             else:
-                print("\nERROR: sequence waveforms out of hardware bounds")
+                print("ERROR: sequence waveforms out of hardware bounds")
                 return False
 
             # Execute the experiment

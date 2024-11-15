@@ -10,7 +10,6 @@
 import numpy as np
 
 gFactor = [0.025, 0.040, 0.035] # (X, Y, Z) in T/m/o.u.
-max_grad = 80  # mT/m
 max_slew_rate = 50e-3  # mT/m/ms
 grad_raster_time = 30e-6  # s
 grad_rise_time = 400e-6 # s, time for gradient ramps
@@ -29,12 +28,16 @@ addRdPoints = 10 # to account for wrong first points after decimation
 adcFactor = 13.788 # mV/adcUnit
 scanner_name = "Physio V1.01"
 antenna_dict = {"RF01": np.pi/(0.3*70), "RF02": np.pi/(0.3*70)}
+reference_time = 70  # us, reference excitation time to get the amplitude for rabi
 fov = [20.0, 20.0, 20.0]
 dfov = [0.0, 0.0, 0.0]
 bash_path = "D:\Git\git-bash.exe" # use "gnome-terminal" for genome linux
 rp_ip_address = "192.168.5.20"
 rp_version = "rp-122"
+rp_max_input_voltage = 225  # mV
 lnaGain = 50 # dB
+rf_min_gain = 50  # dB  if your rf chain uses a fix gain, set this number equal to lnaGain
+rf_max_gain = 76  # dB, if your rf chain uses a fix gain, set this number equal to lnaGain
 temperature = 293 # k
 shimming_factor = 1e-5
 rx_channels = 4
@@ -42,3 +45,4 @@ rx_channels = 4
 # Arduinos
 ard_sn_autotuning = '242353133363518050E0'
 ard_sn_interlock = '242353133363518050E1'
+ard_sn_attenuator = '242353133363518050E2'

@@ -8,27 +8,53 @@ import subprocess
 import sys
 import threading
 
+from PyQt5.QtCore import QEvent
+
 from seq.sequences import defaultsequences
 from ui.window_main import MainWindow
-
-from configs import hw_config as hw
 
 
 class MainController(MainWindow):
     def __init__(self, *args, **kwargs):
         super(MainController, self).__init__(*args, **kwargs)
 
+        self.set_session(self.session)
+
+        self.initializeThread()
+
+    def set_demo(self, demo):
+        self.demo = demo
+
+    def set_session(self, session):
+        # Get repo version
+        try:
+            tag = subprocess.check_output(['git', 'describe', '--tags'], stderr=subprocess.STDOUT).strip().decode(
+                'utf-8')
+        except subprocess.CalledProcessError as e:
+            print(f"Error getting Git tag: {e.output.decode('utf-8')}")
+            tag = ""
+
+        # Set window title
+        self.session = session
+        self.setWindowTitle("MaRGE " + tag + ": " + session['directory'])
         # Add the session to all sequences
         for sequence in defaultsequences.values():
-            sequence.session = self.session
+            sequence.session = session
 
+    def initializeThread(self):
         # Start the sniffer
         thread = threading.Thread(target=self.history_list.waitingForRun)
         thread.start()
+        print("Sniffer initialized.\n")
 
-    def mousePressEvent(self, event):
-        # Send self.main.post_gui.console.setup_console()prints to current window console
-        self.console.setup_console()
+    def set_console(self):
+        self.layout_left.addWidget(self.console)
+
+    def changeEvent(self, event):
+        if event.type() == QEvent.ActivationChange:  # Event type 99
+            if self.isActiveWindow():
+                self.set_console()
+        super().changeEvent(event)
 
     def closeEvent(self, event):
         """
@@ -44,19 +70,11 @@ class MainController(MainWindow):
         Returns:
             None
         """
-        self.app_open = False
         # Return stdout to defaults.
         sys.stdout = sys.__stdout__
-        if not self.demo:
-            # Close server
-            try:
-                subprocess.run([hw.bash_path, "--", "./communicateRP.sh", hw.rp_ip_address, "killall marcos_server"])
-            except:
-                print("\nERROR: Server connection not found! Please verify if the blue LED is illuminated on the Red Pitaya.")
-
-            # Disable power modules
-            self.toolbar_marcos.arduino.send("GPA_ON 0;")
-            self.toolbar_marcos.arduino.send("RFPA_RF 0;")
             
-        print('\nGUI closed successfully!')
+        print('\nMain GUI closed successfully!')
+
+        self.parent.show()
+
         super().closeEvent(event)

@@ -15,6 +15,7 @@ from scipy.io import savemat, loadmat
 import experiment as ex
 import scipy.signal as sig
 import csv
+import ismrmrd
 import matplotlib.pyplot as plt
 import pypulseq as pp
 from flocra_pulseq.interpreter import PSInterpreter
@@ -23,7 +24,7 @@ from skimage.measure import shannon_entropy
 
 # Import dicom saver
 from manager.dicommanager import DICOMImage
-
+import shutil
 
 class MRIBLANKSEQ:
     """
@@ -71,6 +72,8 @@ class MRIBLANKSEQ:
         self.session = {}
         self.demo = None
         self.mode = None
+        self.output=[]
+        self.raw_data_name="raw_data"
         self.flo_dict = {'g0': [[],[]],
                          'g1': [[],[]],
                          'g2': [[],[]],
@@ -85,27 +88,6 @@ class MRIBLANKSEQ:
 
         # Initialize the sequence
         self.seq = pp.Sequence()
-
-        # Define system properties according to hw_config file
-        self.system = pp.Opts(
-            rf_dead_time=hw.blkTime*1e-6,   # s
-            max_grad=hw.max_grad,   # mT/m
-            grad_unit='mT/m',
-            max_slew=hw.max_slew_rate,  # mT/m/ms
-            slew_unit='mT/m/ms',
-            grad_raster_time=hw.grad_raster_time,   # s
-            rise_time=hw.grad_rise_time,    # s
-        )
-
-        # Define the interpreter. It should be updated on calibration
-        self.flo_interpreter = PSInterpreter(tx_warmup=hw.blkTime, # s
-                                             rf_center=hw.larmorFreq * 1e6,  # Hz
-                                             rf_amp_max=hw.b1Efficiency/(2*np.pi)*1e6,  # Hz
-                                             gx_max=hw.gFactor[0]*hw.gammaB,    # Hz/m
-                                             gy_max=hw.gFactor[1]*hw.gammaB,    # Hz/m
-                                             gz_max=hw.gFactor[2]*hw.gammaB,    # Hz/m
-                                             grad_max=np.max(hw.gFactor)*hw.gammaB, # Hz/m
-                                             )
 
 
 
@@ -191,6 +173,115 @@ class MRIBLANKSEQ:
                 tips[self.mapNmspc[key]] = [self.mapTips[key]]
         return out, tips
 
+    def runBatches(self, waveforms, n_readouts, frequency=hw.larmorFreq, bandwidth=0.03):
+        """
+        Execute multiple batches of waveforms for MRI data acquisition, handle scanning, and store oversampled data.
+
+        Parameters:
+        -----------
+        waveforms : dict
+            A dictionary of waveform sequences, where each key corresponds to a batch identifier and
+            the value is the waveform data generated using PyPulseq.
+        n_readouts : dict
+            A dictionary that specifies the number of readout points for each batch. Keys correspond to
+            the batch identifiers, and values specify the number of readout points for each sequence.
+        frequency : float, optional
+            Larmor frequency in MHz for the MRI scan (default is the system's Larmor frequency, hw.larmorFreq).
+        bandwidth : float, optional
+            Bandwidth in Hz used to calculate the sampling time (1 / bandwidth gives the sampling period).
+
+        Returns:
+        --------
+        bool
+            Returns True if all batches were successfully executed, and False if an error occurred (e.g.,
+            sequence waveforms are out of hardware bounds).
+
+        Notes:
+        ------
+        - The method will initialize the Red Pitaya hardware if not in demo mode.
+        - The method converts waveforms from PyPulseq format to Red Pitaya compatible format.
+        - If plotSeq is True, the sequence will be plotted instead of being executed.
+        - In demo mode, the acquisition simulates random data instead of using actual hardware.
+        - Oversampled data is stored in the class attribute `self.mapVals['data_over']`.
+        - Data points are acquired in batches, with error handling in case of data loss, and batches are repeated if necessary.
+        """
+        self.mapVals['n_readouts'] = list(n_readouts.values())
+        self.mapVals['n_batches'] = len(n_readouts.values())
+
+        # Initialize a list to hold oversampled data
+        data_over = []
+
+        # Iterate through each batch of waveforms
+        for seq_num in waveforms.keys():
+            # Initialize the experiment if not in demo mode
+            if not self.demo:
+                self.expt = ex.Experiment(
+                    lo_freq=frequency,  # Larmor frequency in MHz
+                    rx_t=1 / bandwidth,  # Sampling time in us
+                    init_gpa=False,  # Whether to initialize GPA board (False for now)
+                    gpa_fhdo_offset_time=(1 / 0.2 / 3.1),  # GPA offset time calculation
+                    auto_leds=True  # Automatic control of LEDs
+                )
+
+            # Convert the PyPulseq waveform to the Red Pitaya compatible format
+            self.pypulseq2mriblankseq(waveforms=waveforms[seq_num], shimming=self.shimming)
+
+            # Load the waveforms into Red Pitaya
+            if not self.floDict2Exp():
+                print("ERROR: Sequence waveforms out of hardware bounds")
+                return False
+            else:
+                print("Sequence waveforms loaded successfully")
+
+            # If not plotting the sequence, start scanning
+            if not self.plotSeq:
+                for scan in range(self.nScans):
+                    print(f"Scan {scan + 1}, batch {seq_num.split('_')[-1]}/{len(n_readouts)} running...")
+                    acquired_points = 0
+                    expected_points = n_readouts[seq_num] * hw.oversamplingFactor  # Expected number of points
+
+                    # Continue acquiring points until we reach the expected number
+                    while acquired_points != expected_points:
+                        if not self.demo:
+                            rxd, msgs = self.expt.run()  # Run the experiment and collect data
+                        else:
+                            # In demo mode, generate random data as a placeholder
+                            rxd = {'rx0': np.random.randn(expected_points) + 1j * np.random.randn(expected_points)}
+
+                        # Update acquired points
+                        acquired_points = np.size(rxd['rx0'])
+
+                        # Check if acquired points coincide with expected points
+                        if acquired_points != expected_points:
+                            print("WARNING: data apoints lost!")
+                            print("Repeating batch...")
+
+                    # Concatenate acquired data into the oversampled data array
+                    data_over = np.concatenate((data_over, rxd['rx0']), axis=0)
+                    print(f"Acquired points = {acquired_points}, Expected points = {expected_points}")
+                    print(f"Scan {scan + 1}, batch {seq_num[-1]}/{len(n_readouts)} ready!")
+
+                # Decimate the oversampled data and store it
+                self.mapVals['data_over'] = data_over
+
+            elif self.plotSeq and self.standalone:
+                # Plot the sequence if requested and return immediately
+                self.sequencePlot(standalone=self.standalone)
+
+            if not self.demo:
+                self.expt.__del__()
+
+        return True
+
+    def sequenceInfo(self):
+        print("sequenceInfo method is empty."
+              "It is recommended to overide this method into your sequence.")
+
+    def sequenceTime(self):
+        rint("sequenceTime method is empty."
+             "It is recommended to overide this method into your sequence.")
+        return 0
+
     def pypulseq2mriblankseq(self, waveforms=None, shimming=np.array([0.0, 0.0, 0.0])):
         """
         Translates PyPulseq waveforms into mriBlankSeq dictionary format for use in the GUI.
@@ -228,32 +319,32 @@ class MRIBLANKSEQ:
         # Fill dictionary
         for key in waveforms.keys():
             if key == 'tx0':
-                self.flo_dict['tx0'][0] = np.concatenate((self.flo_dict['tx0'][0], waveforms['tx0'][0]), axis=0)
-                self.flo_dict['tx0'][1] = np.concatenate((self.flo_dict['tx0'][1], waveforms['tx0'][1]), axis=0)
+                self.flo_dict['tx0'][0] = np.concatenate((self.flo_dict['tx0'][0], waveforms['tx0'][0][0:-1]), axis=0)
+                self.flo_dict['tx0'][1] = np.concatenate((self.flo_dict['tx0'][1], waveforms['tx0'][1][0:-1]), axis=0)
             elif key == 'tx1':
-                self.flo_dict['tx1'][0] = np.concatenate((self.flo_dict['tx1'][0], waveforms['tx1'][0]), axis=0)
-                self.flo_dict['tx1'][1] = np.concatenate((self.flo_dict['tx1'][1], waveforms['tx1'][1]), axis=0)
+                self.flo_dict['tx1'][0] = np.concatenate((self.flo_dict['tx1'][0], waveforms['tx1'][0][0:-1]), axis=0)
+                self.flo_dict['tx1'][1] = np.concatenate((self.flo_dict['tx1'][1], waveforms['tx1'][1][0:-1]), axis=0)
             elif key == 'rx0_en':
-                self.flo_dict['rx0'][0] = np.concatenate((self.flo_dict['rx0'][0], waveforms['rx0_en'][0]), axis=0)
-                self.flo_dict['rx0'][1] = np.concatenate((self.flo_dict['rx0'][1], waveforms['rx0_en'][1]), axis=0)
+                self.flo_dict['rx0'][0] = np.concatenate((self.flo_dict['rx0'][0], waveforms['rx0_en'][0][0:-1]), axis=0)
+                self.flo_dict['rx0'][1] = np.concatenate((self.flo_dict['rx0'][1], waveforms['rx0_en'][1][0:-1]), axis=0)
             elif key == 'rx1_en':
-                self.flo_dict['rx1'][0] = np.concatenate((self.flo_dict['rx1'][0], waveforms['rx1_en'][0]), axis=0)
-                self.flo_dict['rx1'][1] = np.concatenate((self.flo_dict['rx1'][1], waveforms['rx1_en'][1]), axis=0)
+                self.flo_dict['rx1'][0] = np.concatenate((self.flo_dict['rx1'][0], waveforms['rx1_en'][0][0:-1]), axis=0)
+                self.flo_dict['rx1'][1] = np.concatenate((self.flo_dict['rx1'][1], waveforms['rx1_en'][1][0:-1]), axis=0)
             elif key == 'tx_gate':
-                self.flo_dict['ttl0'][0] = np.concatenate((self.flo_dict['ttl0'][0], waveforms['tx_gate'][0]), axis=0)
-                self.flo_dict['ttl0'][1] = np.concatenate((self.flo_dict['ttl0'][1], waveforms['tx_gate'][1]), axis=0)
+                self.flo_dict['ttl0'][0] = np.concatenate((self.flo_dict['ttl0'][0], waveforms['tx_gate'][0][0:-1]), axis=0)
+                self.flo_dict['ttl0'][1] = np.concatenate((self.flo_dict['ttl0'][1], waveforms['tx_gate'][1][0:-1]), axis=0)
             elif key == 'rx_gate':
-                self.flo_dict['ttl1'][0] = np.concatenate((self.flo_dict['ttl1'][0], waveforms['rx_gate'][0]), axis=0)
-                self.flo_dict['ttl1'][1] = np.concatenate((self.flo_dict['ttl1'][1], waveforms['rx_gate'][1]), axis=0)
+                self.flo_dict['ttl1'][0] = np.concatenate((self.flo_dict['ttl1'][0], waveforms['rx_gate'][0][0:-1]), axis=0)
+                self.flo_dict['ttl1'][1] = np.concatenate((self.flo_dict['ttl1'][1], waveforms['rx_gate'][1][0:-1]), axis=0)
             elif key == 'grad_vx':
-                self.flo_dict['g0'][0] = np.concatenate((self.flo_dict['g0'][0], waveforms['grad_vx'][0]), axis=0)
-                self.flo_dict['g0'][1] = np.concatenate((self.flo_dict['g0'][1], waveforms['grad_vx'][1]), axis=0)
+                self.flo_dict['g0'][0] = np.concatenate((self.flo_dict['g0'][0], waveforms['grad_vx'][0][0:-1]), axis=0)
+                self.flo_dict['g0'][1] = np.concatenate((self.flo_dict['g0'][1], waveforms['grad_vx'][1][0:-1]), axis=0)
             elif key == 'grad_vy':
-                self.flo_dict['g1'][0] = np.concatenate((self.flo_dict['g1'][0], waveforms['grad_vy'][0]), axis=0)
-                self.flo_dict['g1'][1] = np.concatenate((self.flo_dict['g1'][1], waveforms['grad_vy'][1]), axis=0)
+                self.flo_dict['g1'][0] = np.concatenate((self.flo_dict['g1'][0], waveforms['grad_vy'][0][0:-1]), axis=0)
+                self.flo_dict['g1'][1] = np.concatenate((self.flo_dict['g1'][1], waveforms['grad_vy'][1][0:-1]), axis=0)
             elif key == 'grad_vz':
-                self.flo_dict['g2'][0] = np.concatenate((self.flo_dict['g2'][0], waveforms['grad_vz'][0]), axis=0)
-                self.flo_dict['g2'][1] = np.concatenate((self.flo_dict['g2'][1], waveforms['grad_vz'][1]), axis=0)
+                self.flo_dict['g2'][0] = np.concatenate((self.flo_dict['g2'][0], waveforms['grad_vz'][0][0:-1]), axis=0)
+                self.flo_dict['g2'][1] = np.concatenate((self.flo_dict['g2'][1], waveforms['grad_vz'][1][0:-1]), axis=0)
 
         # Fill missing keys
         for key in self.flo_dict.keys():
@@ -271,7 +362,7 @@ class MRIBLANKSEQ:
 
         last_times = np.array([value[0][-1] for value in self.flo_dict.values()])
         last_time = np.max(last_times)
-        self.endSequence(last_time+1)
+        self.endSequence(last_time+10)
 
         return True
 
@@ -376,7 +467,7 @@ class MRIBLANKSEQ:
             writer.writeheader()
             writer.writerows([self.mapNmspc, self.mapVals])
 
-    def loadParams(self, directory='experiments/parameterization', file=None):
+    def loadParams(self, directory='experiments/parameterization', file=None): ## ca vient d un fichier ou directement de mon action ???
         """
         Load parameter values from a CSV file.
 
@@ -424,8 +515,8 @@ class MRIBLANKSEQ:
                             for l in reader:
                                 mapValsNew = l
                 except:
-                    print("File %s/%s does not exist" % (directory, file))
-                    print("File %s/%s loaded" % ("experiments/parameterization", self.mapVals['seqName']))
+                    print("WARNING: File %s/%s does not exist" % (directory, file))
+                    print("WARNING: File %s/%s loaded" % ("experiments/parameterization", self.mapVals['seqName']))
                     with open('%s/%s_last_parameters.csv' % ("experiments/parameterization", self.mapVals['seqName']),
                               'r') as csvfile:
                         reader = csv.DictReader(csvfile)
@@ -718,7 +809,7 @@ class MRIBLANKSEQ:
 
             # Insert plots
             plot = 0
-            for item in outputs:
+            for item in outputs[0:3]:
                 plt.subplot(3, 1, plot + 1)
                 for ii in range(len(item[0])):
                     plt.plot(item[0][ii], item[1][ii], label=item[2][ii])
@@ -884,7 +975,7 @@ class MRIBLANKSEQ:
         tx = np.linspace(-nZeros / 2, nZeros / 2, num=100, endpoint=True)
         hanning = 0.5 * (1 + np.cos(2 * np.pi * tx / nZeros))
         txAmp = rfAmplitude * np.exp(1j * rfPhase) * hanning * np.abs(np.sinc(tx))
-        txGateTime = np.array(tStart, tStart + hw.blkTime + rfTime)
+        txGateTime = np.array([tStart, tStart + hw.blkTime + rfTime])
         txGateAmp = np.array([1, 0])
         self.flo_dict['tx0'][0] = np.concatenate((self.flo_dict['tx0'][0], txTime), axis=0)
         self.flo_dict['tx0'][1] = np.concatenate((self.flo_dict['tx0'][1], txAmp), axis=0)
@@ -962,7 +1053,7 @@ class MRIBLANKSEQ:
         try:
             samplingRate = self.expt.getSamplingRate() / hw.oversamplingFactor  # us
         except:
-            samplingRate = self.mapVals['samplingPeriod'] * 1e3 / hw.oversamplingFactor
+            samplingRate = self.mapVals['samplingPeriod'] / hw.oversamplingFactor
         t0 = tStart - (hw.addRdPoints * hw.oversamplingFactor - hw.cic_delay_points) * samplingRate  # us
         t1 = tStart + (hw.addRdPoints * hw.oversamplingFactor + hw.cic_delay_points) * samplingRate + gateTime  # us
         self.flo_dict['rx%i' % channel][0] = \
@@ -1219,12 +1310,13 @@ class MRIBLANKSEQ:
         self.flo_dict['g%i' % gAxis][0] = np.concatenate((self.flo_dict['g%i' % gAxis][0], np.array([t0])), axis=0)
         self.flo_dict['g%i' % gAxis][1] = np.concatenate((self.flo_dict['g%i' % gAxis][1], np.array([gAmp])), axis=0)
 
-    def floDict2Exp(self, rewrite=True):
+    def floDict2Exp(self, rewrite=True, demo=False):
         """
         Check for errors and add instructions to Red Pitaya if no errors are found.
 
         Args:
             rewrite (bool, optional): Whether to overwrite existing values. Defaults to True.
+            demo: If demo is True it just check for errors. Defaults to False.
 
         Returns:
             bool: True if no errors were found and instructions were successfully added to Red Pitaya; False otherwise.
@@ -1235,43 +1327,54 @@ class MRIBLANKSEQ:
             item = self.flo_dict[key]
             dt = item[0][1::] - item[0][0:-1]
             if (dt <= 0).any():
-                print("\n%s timing error" % key)
+                print("ERROR: %s timing error" % key)
                 return False
             if (item[1] > 1).any() or (item[1] < -1).any():
-                print("\n%s amplitude error" % key)
+                print("ERROR: %s amplitude error" % key)
                 return False
 
         # Add instructions to server
-        self.expt.add_flodict({'grad_vx': (self.flo_dict['g0'][0], self.flo_dict['g0'][1]),
-                               'grad_vy': (self.flo_dict['g1'][0], self.flo_dict['g1'][1]),
-                               'grad_vz': (self.flo_dict['g2'][0], self.flo_dict['g2'][1]),
-                               'rx0_en': (self.flo_dict['rx0'][0], self.flo_dict['rx0'][1]),
-                               'rx1_en': (self.flo_dict['rx1'][0], self.flo_dict['rx1'][1]),
-                               'rx2_en': (self.flo_dict['rx2'][0], self.flo_dict['rx2'][1]),
-                               'rx3_en': (self.flo_dict['rx3'][0], self.flo_dict['rx3'][1]),
-                               'tx0': (self.flo_dict['tx0'][0], self.flo_dict['tx0'][1]),
-                               'tx1': (self.flo_dict['tx1'][0], self.flo_dict['tx1'][1]),
-                               'tx_gate': (self.flo_dict['ttl0'][0], self.flo_dict['ttl0'][1]),
-                               'rx_gate': (self.flo_dict['ttl1'][0], self.flo_dict['ttl1'][1]),
-                               }, rewrite)
+        if not self.demo:
+            self.expt.add_flodict({'grad_vx': (self.flo_dict['g0'][0], self.flo_dict['g0'][1]),
+                                   'grad_vy': (self.flo_dict['g1'][0], self.flo_dict['g1'][1]),
+                                   'grad_vz': (self.flo_dict['g2'][0], self.flo_dict['g2'][1]),
+                                   'rx0_en': (self.flo_dict['rx0'][0], self.flo_dict['rx0'][1]),
+                                   'rx1_en': (self.flo_dict['rx1'][0], self.flo_dict['rx1'][1]),
+                                   'rx2_en': (self.flo_dict['rx2'][0], self.flo_dict['rx2'][1]),
+                                   'rx3_en': (self.flo_dict['rx3'][0], self.flo_dict['rx3'][1]),
+                                   'tx0': (self.flo_dict['tx0'][0], self.flo_dict['tx0'][1]),
+                                   'tx1': (self.flo_dict['tx1'][0], self.flo_dict['tx1'][1]),
+                                   'tx_gate': (self.flo_dict['ttl0'][0], self.flo_dict['ttl0'][1]),
+                                   'rx_gate': (self.flo_dict['ttl1'][0], self.flo_dict['ttl1'][1]),
+                                   }, rewrite)
         return True
 
+
+
+
+
+
+
+
+
     def saveRawData(self):
+        
         """
         Save the rawData.
 
-        This method saves the rawData to various formats including .mat, .csv, and .dcm.
+        This method saves the rawData to various formats including .mat, .csv, .dcm and .h5.
 
         The .mat file contains the rawData.
         The .csv file contains only the input parameters.
         The .dcm file is the DICOM image.
-
-        For future releases, ISMRMRD format will be included.
+        The .h5 file is the ISMRMRD format.
+        
 
         Returns:
             None
 
         """
+        
         # Get directory
         if 'directory' in self.session.keys():
             directory = self.session['directory']
@@ -1286,13 +1389,19 @@ class MRIBLANKSEQ:
         directory_mat = directory + '/mat'
         directory_csv = directory + '/csv'
         directory_dcm = directory + '/dcm'
+        directory_ismrmrd = directory + '/ismrmrd'
+        
         if not os.path.exists(directory + '/mat'):
             os.makedirs(directory_mat)
         if not os.path.exists(directory + '/csv'):
             os.makedirs(directory_csv)
         if not os.path.exists(directory + '/dcm'):
             os.makedirs(directory_dcm)
+        if not os.path.exists(directory + '/ismrmrd'):
+            os.makedirs(directory_ismrmrd)
 
+        self.directory_rmd=directory_ismrmrd 
+        
         # Generate filename
         name = datetime.now()
         name_string = name.strftime("%Y.%m.%d.%H.%M.%S.%f")[:-3]
@@ -1303,24 +1412,67 @@ class MRIBLANKSEQ:
             self.raw_data_name = self.mapVals['seqName']
             file_name = "%s.%s" % (self.mapVals['seqName'], name_string)
         self.mapVals['fileName'] = "%s.mat" % file_name
-
+        # Generate filename for ismrmrd
+        self.mapVals['fileNameIsmrmrd'] = "%s.h5" % file_name
+        
         # Save mat file with the outputs
-        savemat("%s/%s.mat" % (directory_mat, file_name), self.mapVals)
+        savemat("%s/%s.mat" % (directory_mat, file_name), self.mapVals) # au format savemat(chemin_fichier_mat, {"data" : data}), avec data contient les données brute à sauvegarder
 
         # Save csv with input parameters
-        with open('%s/%s.csv' % (directory_csv, file_name), 'w', encoding='utf-8') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=self.mapKeys)
-            writer.writeheader()
-            mapVals = {}
+        with open('%s/%s.csv' % (directory_csv, file_name), 'w', encoding='utf-8') as csvfile: # ouvrir le fichier csv en mode écriture au format with open(chemin_fichier_csv, 'w', newline='') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=self.mapKeys) # mapKeys contient les noms des colonnes du fichier csv que l'on veut sauvegarder 
+            writer.writeheader() # écrire l'entete du csv les noms des colonnes dans le fichier csv
+            mapVals = {} # stockage de valeurs de données à écrire
             for key in self.mapKeys:  # take only the inputs from mapVals
-                mapVals[key] = self.mapVals[key]
-            writer.writerows([self.mapNmspc, mapVals])
+                mapVals[key] = self.mapVals[key] # copie les donnée de l'acquisition stockées dans self.mapVals dans mapVals
+            writer.writerows([self.mapNmspc, mapVals]) # écrire les données dans le fichier csv
 
         # Save dcm with the final image
-        if (len(self.output) > 0) and (self.output[0]['widget'] == 'image') and (self.mode is None):
+        if (len(self.output) > 0) and (self.output[0]['widget'] == 'image') and (self.mode is None): ##verify if output is an image
             self.image2Dicom(fileName="%s/%s.dcm" % (directory_dcm, file_name))
 
-    def image2Dicom(self, fileName):
+        # Move seq files
+        self.move_batch_files(destination_folder=directory, file_name=file_name)
+
+    @staticmethod
+    def move_batch_files(destination_folder, file_name):
+        """
+        Move batch_X.seq files from the current working directory to the specified destination folder.
+
+        The method scans all files in the current directory and identifies files with the extension '.seq'.
+        It extracts the batch number from the file name (in the format 'batch_X.seq', where 'X' is the batch number).
+        Then, it moves these files to a subfolder 'seq' inside the specified destination folder, renaming them based on the provided `file_name` template.
+
+        Args:
+        - destination_folder (str): The path to the destination folder where the 'seq' subfolder will be created, and the files will be moved.
+        - file_name (str): The prefix used for renaming the files. Files will be renamed in the format 'file_name_X.seq', where 'X' is the extracted batch number from the original file name.
+
+        Example:
+            If the file 'batch_1.seq' is found and `file_name='processed'`, it will be moved and renamed to:
+            'destination_folder/seq/processed_1.seq'.
+
+        Side Effects:
+        - Creates a 'seq' subfolder in the destination folder if it doesn't already exist.
+        - Moves and renames the matched '.seq' files from the current directory.
+
+        """
+        # List all files in the source folder
+        for source_file in os.listdir():
+            # Match files with the pattern 'batch_X.seq'
+            file_prov = source_file.split('.')
+            if file_prov[-1]=='seq' and os.path.isfile(source_file):
+                batch_num = file_prov[0].split('_')[-1]
+
+                # Create the destination folder path based on the batch number
+                os.makedirs(os.path.join(destination_folder, 'seq'), exist_ok=True)
+
+                # Move the file to the destination folder
+                destination_file = os.path.join(destination_folder, 'seq', file_name+'_%s.seq' % batch_num)
+                shutil.move(source_file, destination_file)
+                print(f'Moved: {file_name} to {destination_folder}')
+       
+        
+    def image2Dicom(self, fileName): 
         """
         Save the DICOM image.
 
@@ -1383,10 +1535,15 @@ class MRIBLANKSEQ:
         dicom_image.meta_data.update(self.meta_data)
 
         # Save metadata dictionary into DICOM object metadata (Standard DICOM 3.0)
-        dicom_image.image2Dicom()
+        dicom_image.image2Dicom() 
 
         # Save DICOM file
         dicom_image.save(fileName)
+        
+        
+        
+        
+        
 
     def addParameter(self, key='', string='', val=0, units=True, field='', tip=None):
         """
@@ -1431,8 +1588,8 @@ class MRIBLANKSEQ:
             None
 
         """
-        for key in self.mapKeys:
-            if isinstance(self.mapVals[key], list):
+        for key in self.mapKeys: 
+            if isinstance(self.mapVals[key], list): 
                 setattr(self, key, np.array([element * self.map_units[key] for element in self.mapVals[key]]))
             else:
                 setattr(self, key, self.mapVals[key] * self.map_units[key])
@@ -1503,12 +1660,13 @@ class MRIBLANKSEQ:
         """
         return self.mapVals[key]
 
-    def setParameter(self, key, val, unit):
+    def setParameter(self, key=True, string=True, val=True, unit=True):
         """
         Set the value of a parameter.
 
         Args:
             key (str): The key corresponding to the parameter.
+            string (str): String that will be shown in the GUI
             val (Any): The new value to be assigned to the parameter.
             unit (bool): The unit of the parameter.
 
@@ -1517,7 +1675,8 @@ class MRIBLANKSEQ:
 
         """
         self.mapVals[key] = val
-        self.mapUnits[key] = unit
+        self.mapNmspc[key] = string
+        self.map_units[key] = unit
 
     @staticmethod
     def runIFFT(k_space):
@@ -1645,7 +1804,7 @@ class MRIBLANKSEQ:
                 The order should consist of three integers specifying the padding factor for the readout, phase, and
                 slice dimensions, respectively.
 
-        Returns:
+        Returns:sa
             ndarray: The 3D matrix containing the zero-padded k-space data.
         """
         # Zero-padding order for each dimension from the text field
@@ -1722,6 +1881,7 @@ class MRIBLANKSEQ:
         image = self.runIFFT(k_sp_zp)
 
         return image
+
 
     def editer(ksp: np.ndarray, emi: list, ksz_col=0, ksz_lin=0):
         def get_noise_kernel(data: list, pe_rng: int, ksz_col: int, ksz_lin: int):

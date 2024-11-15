@@ -4,7 +4,6 @@ Main file to run MaRGE
 import os
 import sys
 from PyQt5.QtWidgets import QApplication
-from configs import sys_config
 
 # *****************************************************************************
 # Get the directory of the current script
@@ -38,14 +37,11 @@ if not os.path.exists('calibration'):
     os.makedirs('calibration')
 if not os.path.exists('protocols'):
     os.makedirs('protocols')
-if not os.path.exists(sys_config.screenshot_folder):
-    os.makedirs(sys_config.screenshot_folder)
 
 from controller.controller_session import SessionController
 
 # Run the gui
-demo = False
 app = QApplication(sys.argv)
-gui = SessionController(demo)
+gui = SessionController()
 sys.exit(app.exec_())
 

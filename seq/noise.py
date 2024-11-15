@@ -5,6 +5,8 @@ MRILAB @ I3M
 
 import os
 import sys
+import time
+
 #*****************************************************************************
 # Get the directory of the current script
 main_directory = os.path.dirname(os.path.realpath(__file__))
@@ -29,6 +31,7 @@ class Noise(blankSeq.MRIBLANKSEQ):
     def __init__(self):
         super(Noise, self).__init__()
         # Input the parameters
+        self.repetitionTime = None
         self.rxChannel = None
         self.nPoints = None
         self.bw = None
@@ -38,15 +41,16 @@ class Noise(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='nPoints', string='Number of points', val=2500, field='RF')
         self.addParameter(key='bw', string='Acquisition bandwidth (kHz)', val=50.0, units=units.kHz, field='RF')
         self.addParameter(key='rxChannel', string='Rx channel', val=0, field='RF')
+        self.addParameter(key='repetitionTime', string='Repetition time (ms)', val=500.0, field='RF', units=units.ms)
 
     def sequenceInfo(self):
-        print(" ")
+        
         print("Noise")
         print("Author: Dr. J.M. Algarín")
         print("Contact: josalggui@i3m.upv.es")
         print("mriLab @ i3M, CSIC, Spain")
-        print("Get a noise measurement")
-        print(" ")
+        print("Get a noise measurement\n")
+        
 
     def sequenceTime(self):
         return(0)  # minutes, scanTime
@@ -56,8 +60,11 @@ class Noise(blankSeq.MRIBLANKSEQ):
         self.demo = demo
 
         # Fix units to MHz and us
-        self.freqOffset *= 1e-6 # MHz
-        self.bw *= 1e-6 # MHz
+        self.freqOffset *= 1e-6  # MHz
+        self.bw *= 1e-6  # MHz
+        self.repetitionTime *= 1e6  # us
+
+        self.mapVals['larmorFreq'] = hw.larmorFreq
 
         if self.demo:
             dataR = np.random.randn((self.nPoints + 2 * hw.addRdPoints) * hw.oversamplingFactor)
@@ -70,6 +77,7 @@ class Noise(blankSeq.MRIBLANKSEQ):
             fVector = np.linspace(-self.bw / 2, self.bw / 2, num=self.nPoints) * 1e3  # kHz
             self.dataTime = [tVector, data]
             self.dataSpec = [fVector, spectrum]
+            time.sleep(self.repetitionTime*1e-6)
         else:
             samplingPeriod = 1 / self.bw
             self.expt = ex.Experiment(lo_freq=hw.larmorFreq + self.freqOffset,
@@ -86,12 +94,17 @@ class Noise(blankSeq.MRIBLANKSEQ):
             t0 = 30 + hw.addRdPoints*hw.oversamplingFactor/self.bw
             self.rxGateSync(t0, acqTime, channel=self.rxChannel)
             t0 = t0 + acqTime + hw.addRdPoints*hw.oversamplingFactor/self.bw
-            self.endSequence(t0+20)
+            if t0 < self.repetitionTime:
+                self.endSequence(self.repetitionTime)
+            else:
+                self.endSequence(t0+20)
+
+            # Load sequence to red pitaya
             if self.floDict2Exp():
-                print("\nSequence waveforms loaded successfully")
+                print("Sequence waveforms loaded successfully")
                 pass
             else:
-                print("\nERROR: sequence waveforms out of hardware bounds")
+                print("ERROR: sequence waveforms out of hardware bounds")
                 return False
 
             if plotSeq == 0:
@@ -113,7 +126,7 @@ class Noise(blankSeq.MRIBLANKSEQ):
         self.mapVals['RMS noise'] = noiserms
         self.mapVals['sampledPoint'] = noiserms # for sweep method
         noiserms = noiserms*1e3
-        print('\nrms noise: %0.5f uV' % noiserms)
+        print('rms noise: %0.5f uV' % noiserms)
         bw = self.mapVals['bw']*1e3 # Hz
         johnson = np.sqrt(2 * 50 * hw.temperature * bw * 1.38e-23) * 10 ** (hw.lnaGain / 20) * 1e6  # uV
         print('Expected by Johnson: %0.5f uV' % johnson)

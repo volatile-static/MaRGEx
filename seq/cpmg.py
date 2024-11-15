@@ -34,12 +34,12 @@ class TSE(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='phase_mode', string='Phase mode', val='CPMG', tip='CP, CPMG, APCP, APCPMG', field='SEQ')
 
     def sequenceInfo(self):
-        print(" ")
+        
         print("CPMG")
         print("Author: Dr. J.M. Algarín")
         print("Contact: josalggui@i3m.upv.es")
         print("mriLab @ i3M, CSIC, Spain")
-        print("This sequence runs an echo train with CPMG")
+        print("This sequence runs an echo train with CPMG\n")
 
     def sequenceTime(self):
         nScans = self.mapVals['nScans']
@@ -53,9 +53,9 @@ class TSE(blankSeq.MRIBLANKSEQ):
         # Check that self.phase_mode is once of the good values
         phase_modes = ['CP', 'CPMG', 'APCP', 'APCPMG']
         if not self.phase_mode in phase_modes:
-            print('\nError: unexpected phase mode.')
-            print('Please select one of possible modes:')
-            print('CP\nCPMG\nAPCP\nAPCPMG')
+            print('ERROR: unexpected phase mode.')
+            print('ERROR: Please select one of possible modes:')
+            print('ERROR: CP\nCPMG\nAPCP\nAPCPMG')
             return False
 
         # I do not understand why I cannot create the input parameters automatically
@@ -121,15 +121,15 @@ class TSE(blankSeq.MRIBLANKSEQ):
         # Run the createSequence method
         acq_points = createSequence()
         self.mapVals['bw'] = bw
-        print("\nAcquisition bandwidth = %0.1f kHz"%(bw*1e3))
+        print("Acquisition bandwidth = %0.1f kHz"%(bw*1e3))
 
         # Save instructions into MaRCoS if not a demo
         if not self.demo:
             if self.floDict2Exp():
-                print("\nSequence waveforms loaded successfully")
+                print("Sequence waveforms loaded successfully")
                 pass
             else:
-                print("\nERROR: sequence waveforms out of hardware bounds")
+                print("ERROR: sequence waveforms out of hardware bounds")
                 return False
 
         # Execute the experiment if not plot
@@ -181,7 +181,7 @@ class TSE(blankSeq.MRIBLANKSEQ):
         fitting1 = func1(t2_vector,
                          fitData1[0], fitData1[1])
         corr_coef1 = np.corrcoef(np.abs(data), fitting1)
-        print('\nFor one component:')
+        print('For one component:')
         print('rho:', round(fitData1[0], 1))
         print('T2 (ms):', round(fitData1[1], 1), ' ms')
         print('Correlation: %0.3f' % corr_coef1[0, 1])

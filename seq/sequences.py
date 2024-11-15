@@ -6,6 +6,7 @@ Created on Thu June 2 2022
 """
 
 import seq.rare as rare
+import seq.rare_pp as rare_pp
 import seq.rareProtocols as rareProtocols
 import seq.rareProtocolsTest as rareProtocolsTest
 # import seq.haste as haste
@@ -19,6 +20,7 @@ import seq.B1calibration as B1calibration
 import seq.cpmg as tse
 import seq.eddycurrents as eddycurrents
 import seq.larmor as larmor
+import seq.larmor_pypulseq as larmor_pypulseq
 import seq.inversionRecovery as inversionRecovery
 # import seq.ADCdelayTest as ADCdelayTest
 import seq.noise as noise
@@ -28,18 +30,22 @@ import seq.testSE as testSE
 import seq.sweepImage as sweep
 import seq.autoTuning as autoTuning
 import seq.localizer as localizer
-import seq.MRID as mrid
+# import seq.MRID as mrid
 import seq.tsePrescan as tsePrescan
-import seq.PETRAphysio as PETRAphysio
+# import seq.PETRAphysio as PETRAphysio
 import seq.larmor_raw as larmor_raw
 import seq.mse as mse
 from seq import a2re, fe3d, b0map
 import seq.pulseq_reader as pulseq_reader
+import seq.fix_gain as fix_gain
+import seq.mse_pp as mse_pp
+import seq.mse_pp_jma as mse_jma
 
 class RARE(rare.RARE):
     def __init__(self): super(RARE, self).__init__()
-class PETRAphysio(PETRAphysio.PETRAphysio):
-    def __init__(self): super(PETRAphysio, self).__init__()
+
+# class PETRAphysio(PETRAphysio.PETRAphysio):
+#     def __init__(self): super(PETRAphysio, self).__init__()
 
 class TSEPrescan(tsePrescan.TSEPRE):
     def __init__(self): super(TSEPrescan, self).__init__()
@@ -68,8 +74,8 @@ class PETRA(petra.PETRA):
 class FID(fid.FID):
     def __init__(self): super(FID, self).__init__()
 
-class MRID(mrid.MRID):
-    def __init__(self): super(MRID, self).__init__()
+# class MRID(mrid.MRID):
+#     def __init__(self): super(MRID, self).__init__()
 
 class FIDandNoise(FIDandNoise.FIDandNoise):
     def __init__(self): super(FIDandNoise, self).__init__()
@@ -113,23 +119,22 @@ class AutoTuning(autoTuning.AutoTuning):
 class Localizer(localizer.Localizer):
     def __init__(self): super(Localizer, self).__init__()
 
-class MSE(mse.MSE):
-    def __init__(self): super(MSE, self).__init__()
-
 """
 Definition of default sequences
 """
 defaultsequences = {
     'Larmor': Larmor(),
+    'MSE_jma': mse_jma.MSE(),
     'RAREprotocols': RAREProtocols(),
     'RAREprotocolsTest': RAREProtocolsTest(),
     'RARE': RARE(),
+    'RARE_pp': rare_pp.RARE_pp(),
     'PulseqReader': pulseq_reader.PulseqReader(),
-    'MRID': MRID(),
     'Noise': Noise(),
     'RabiFlops': RabiFlops(),
     'Shimming': Shimming(),
     'AutoTuning': AutoTuning(),
+    'FixGain': fix_gain.FixGain(),
     'TSE_prescan': TSEPrescan(),
     'Localizer': Localizer(),
     'GRE3D': GRE3D(),
@@ -146,10 +151,12 @@ defaultsequences = {
     # 'ADCtest': ADCtest(),
     'SWEEP': SWEEP(),
     'testSE': testSE(),
-    'PETRAphysio': PETRAphysio(),
-    'LarmorRaw': larmor_raw.LarmorRaw(),
-    'MSE': MSE(),
+    # 'PETRAphysio': PETRAphysio(),
+    'Larmor Raw': larmor_raw.LarmorRaw(),
+    'MSE': mse.MSE(),
+    'MSE_PyPulseq': mse_pp.MSE(),
     'B0Map': b0map.B0Map(),
     'A2RE': a2re.A2RE(),
     'FE3D': fe3d.GRE3D(),
+    'Larmor PyPulseq': larmor_pypulseq.LarmorPyPulseq(),
 }

@@ -46,12 +46,12 @@ class FID(blankSeq.MRIBLANKSEQ):
         self.addParameter(key='readRFpulse', string='Read RF Pulse', val=0, field='OTH')
 
     def sequenceInfo(self):
-        print(" ")
+        
         print("FID")
         print("Author: Dr. J.M. Algarín")
         print("Contact: josalggui@i3m.upv.es")
         print("mriLab @ i3M, CSIC, Spain")
-        print("This sequence runs a single FID")
+        print("This sequence runs a single FID\n")
 
     def sequenceTime(self):
         nScans = self.mapVals['nScans']
@@ -110,10 +110,10 @@ class FID(blankSeq.MRIBLANKSEQ):
         self.mapVals['bw'] = bw # MHz
         createSequence()
         if self.floDict2Exp():
-            print("\nSequence waveforms loaded successfully")
+            print("Sequence waveforms loaded successfully")
             pass
         else:
-            print("\nERROR: sequence waveforms out of hardware bounds")
+            print("ERROR: sequence waveforms out of hardware bounds")
             return False
 
         if not plotSeq:

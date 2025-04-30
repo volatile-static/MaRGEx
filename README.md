@@ -6,3 +6,5 @@ It is a GUI for an extended version of the MaRCoS spectrometer.
 > Take a look at the MaRGE [Wiki](https://github.com/josalggui/MaRGE/wiki)! (under development)
 >
 > Take a look at the MaRGE [Documentation](https://josalggui.github.io/MaRGE/)! (under development)
+
+**AI-powered document:** https://deepwiki.com/volatile-static/MaRGEx

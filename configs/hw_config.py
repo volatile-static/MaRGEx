@@ -41,6 +41,7 @@ rf_max_gain = 76  # dB, if your rf chain uses a fix gain, set this number equal 
 temperature = 293 # k
 shimming_factor = 1e-5
 rx_channels = 4
+gate_active_low = False
 
 # Arduinos
 ard_sn_autotuning = '242353133363518050E0'

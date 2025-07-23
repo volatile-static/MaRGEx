@@ -1462,6 +1462,9 @@ class MRIBLANKSEQ:
                 print("ERROR: %s amplitude error" % key)
                 return False
 
+        # gate active level
+        gate_level = self.flo_dict['ttl0'][1] ^ hw.gate_active_low
+
         # Add instructions to server
         if not self.demo:
             self.expt.add_flodict({'grad_vx': (self.flo_dict['g0'][0], self.flo_dict['g0'][1]),
@@ -1473,7 +1476,7 @@ class MRIBLANKSEQ:
                                    'rx3_en': (self.flo_dict['rx3'][0], self.flo_dict['rx3'][1]),
                                        'tx0': (self.flo_dict['tx0'][0], self.flo_dict['tx0'][1]),
                                        'tx1': (self.flo_dict['tx1'][0], self.flo_dict['tx1'][1]),
-                                       'tx_gate': (self.flo_dict['ttl0'][0], self.flo_dict['ttl0'][1]),
+                                       'tx_gate': (self.flo_dict['ttl0'][0], gate_level),
                                        'rx_gate': (self.flo_dict['ttl1'][0], self.flo_dict['ttl1'][1]),
                                        }, rewrite)
         return True

@@ -12,13 +12,11 @@ import numpy as np
 import configs.hw_config as hw
 from datetime import date, datetime
 from scipy.io import savemat, loadmat
-import experiment as ex
+import controller.experiment_gui as ex
 import scipy.signal as sig
 import csv
 import ismrmrd
 import matplotlib.pyplot as plt
-import pypulseq as pp
-from flocra_pulseq.interpreter import PSInterpreter
 from skimage.util import view_as_blocks
 from skimage.measure import shannon_entropy
 
@@ -85,10 +83,6 @@ class MRIBLANKSEQ:
                          'tx1': [[],[]],
                          'ttl0': [[],[]],
                          'ttl1': [[],[]],}
-
-        # Initialize the sequence
-        self.seq = pp.Sequence()
-
 
 
     # *********************************************************************************
@@ -173,37 +167,53 @@ class MRIBLANKSEQ:
                 tips[self.mapNmspc[key]] = [self.mapTips[key]]
         return out, tips
 
-    def runBatches(self, waveforms, n_readouts, frequency=hw.larmorFreq, bandwidth=0.03):
+    def runBatches(self, waveforms, n_readouts, n_adc,
+                   frequency=hw.larmorFreq,
+                   bandwidth=0.03,
+                   decimate='Normal',
+                   hardware=True,
+                   output='',
+                   ):
         """
-        Execute multiple batches of waveforms for MRI data acquisition, handle scanning, and store oversampled data.
+        Execute multiple batches of MRI waveforms, manage data acquisition, and store oversampled data.
 
         Parameters:
         -----------
         waveforms : dict
-            A dictionary of waveform sequences, where each key corresponds to a batch identifier and
-            the value is the waveform data generated using PyPulseq.
+            Dictionary containing waveform sequences. Keys represent batch identifiers, and values are
+            the corresponding waveform data generated with PyPulseq.
         n_readouts : dict
-            A dictionary that specifies the number of readout points for each batch. Keys correspond to
-            the batch identifiers, and values specify the number of readout points for each sequence.
+            Dictionary specifying the number of readout points for each batch. Keys match the batch
+            identifiers, and values indicate the number of readout points.
+        n_adc : int
+            Number of ADC windows. Each window must have the same length.
         frequency : float, optional
-            Larmor frequency in MHz for the MRI scan (default is the system's Larmor frequency, hw.larmorFreq).
+            Larmor frequency in MHz for the MRI acquisition. Defaults to the system's Larmor frequency (hw.larmorFreq).
         bandwidth : float, optional
-            Bandwidth in Hz used to calculate the sampling time (1 / bandwidth gives the sampling period).
+            Bandwidth in MHz used to calculate the sampling period (sampling time = 1 / bandwidth). Defaults to 0.03 MHz.
+        decimate : str, optional
+            Specifies the decimation method.
+            - 'Normal': Decimates the acquired array without preprocessing.
+            - 'PETRA': Adjusts the pre-readout points to the desired starting point.
+        hardware: bool, optional
+            Take into account gradient and ADC delay.
+        output: str, optional
+            String to add to the output keys saved in the mapVals parameter.
 
         Returns:
         --------
         bool
-            Returns True if all batches were successfully executed, and False if an error occurred (e.g.,
-            sequence waveforms are out of hardware bounds).
+            True if all batches are executed successfully, False if an error occurs (e.g., waveform constraints exceed hardware limits).
 
         Notes:
         ------
-        - The method will initialize the Red Pitaya hardware if not in demo mode.
-        - The method converts waveforms from PyPulseq format to Red Pitaya compatible format.
-        - If plotSeq is True, the sequence will be plotted instead of being executed.
-        - In demo mode, the acquisition simulates random data instead of using actual hardware.
-        - Oversampled data is stored in the class attribute `self.mapVals['data_over']`.
-        - Data points are acquired in batches, with error handling in case of data loss, and batches are repeated if necessary.
+        - Initializes Red Pitaya hardware unless in demo mode.
+        - Converts PyPulseq waveforms to Red Pitaya-compatible format.
+        - If `plotSeq` is True, the sequence is plotted instead of executed.
+        - In demo mode, simulated random data replaces hardware acquisition.
+        - Oversampled data is stored in `self.mapVals['data_over']`.
+        - Decimated data is stored in `self.mapVals['data_decimated']`.
+        - Handles data loss by repeating batches until the expected points are acquired.
         """
         self.mapVals['n_readouts'] = list(n_readouts.values())
         self.mapVals['n_batches'] = len(n_readouts.values())
@@ -224,7 +234,11 @@ class MRIBLANKSEQ:
                 )
 
             # Convert the PyPulseq waveform to the Red Pitaya compatible format
-            self.pypulseq2mriblankseq(waveforms=waveforms[seq_num], shimming=self.shimming)
+            self.pypulseq2mriblankseq(waveforms=waveforms[seq_num],
+                                      shimming=self.shimming,
+                                      sampling_period=1/bandwidth,
+                                      hardware=hardware,
+                                      )
 
             # Load the waveforms into Red Pitaya
             if not self.floDict2Exp():
@@ -262,7 +276,14 @@ class MRIBLANKSEQ:
                     print(f"Scan {scan + 1}, batch {seq_num[-1]}/{len(n_readouts)} ready!")
 
                 # Decimate the oversampled data and store it
-                self.mapVals['data_over'] = data_over
+                if output=='':
+                    self.mapVals[f'data_over'] = data_over
+                    data = self.decimate(data_over, n_adc=n_adc, option='Normal', remove=False)
+                    self.mapVals[f'data_decimated'] = data
+                else:
+                    self.mapVals[f'data_over_{output}'] = data_over
+                    data = self.decimate(data_over, n_adc=n_adc, option='Normal', remove=False)
+                    self.mapVals[f'data_decimated_{output}'] = data
 
             elif self.plotSeq and self.standalone:
                 # Plot the sequence if requested and return immediately
@@ -282,29 +303,66 @@ class MRIBLANKSEQ:
              "It is recommended to overide this method into your sequence.")
         return 0
 
-    def pypulseq2mriblankseq(self, waveforms=None, shimming=np.array([0.0, 0.0, 0.0])):
+    def pypulseq2mriblankseq(self, waveforms=None,
+                             shimming=np.array([0.0, 0.0, 0.0]),
+                             sampling_period=0.0,
+                             hardware=True,
+                             ):
         """
-        Translates PyPulseq waveforms into mriBlankSeq dictionary format for use in the GUI.
+        Converts PyPulseq waveforms into a format compatible with MRI hardware.
 
-        Args:
-            waveforms (dict, optional):
-                A dictionary containing waveform data for different channels. The keys represent channel names
-                ('tx0', 'tx1', 'rx0_en', 'rx1_en', 'tx_gate', 'rx_gate', 'grad_vx', 'grad_vy', 'grad_vz') and
-                the values are lists of numpy arrays representing the waveform data for each channel.
-            shimming (numpy.ndarray, optional):
-                A 1D numpy array of length 3 containing shimming values for the gradient channels
-                (default is [0.0, 0.0, 0.0]).
+        Parameters:
+        -----------
+        waveforms : dict, optional
+            Dictionary containing PyPulseq waveforms. The keys represent waveform types (e.g., 'tx0', 'rx0_en',
+            'grad_vx'), and values are arrays of time and amplitude pairs.
+        shimming : numpy.ndarray, optional
+            Array of three values representing the shimming currents to apply in the x, y, and z gradients, respectively.
+            Defaults to [0.0, 0.0, 0.0].
+        sampling_period : float, optional
+            Sampling period in seconds, used to account for delays in the CIC filter. Defaults to 0.0.
+        hardware: bool, optional
+            Take into account gradient and ADC delay
 
         Returns:
-            bool: Returns True when the conversion and sequence update are completed successfully.
+        --------
+        bool
+            Returns True if the conversion is successful.
+
+        Workflow:
+        ---------
+        1. **Reset flo_dict**:
+            Initializes the flo dictionary, which stores gradient, RF, and TTL signals for MRI hardware execution.
+
+        2. **Fill flo_dict**:
+            Iterates through the input `waveforms` to populate the flo dictionary. Each key corresponds to a signal
+            type, and the waveform data is appended.
+
+        3. **Fill missing keys**:
+            Ensures that all keys in `flo_dict` are populated, even if no data exists for certain signals. Unfilled
+            keys are set to default arrays with zero values.
+
+        4. **Apply shimming**:
+            Adds the shimming values to the corresponding gradient channels (x, y, z).
+
+        5. **Set sequence end**:
+            Ensures all signals return to zero at the end of the sequence to finalize waveform execution.
+
+        6. **Add hardware-specific corrections**:
+            - Applies gradient latency adjustments.
+            - Accounts for CIC filter delays in the receive (rx) signals.
+
+        7. **Revalidate sequence end**:
+            Reassesses and ensures all signal channels return to zero with a buffer period.
 
         Notes:
-            The function translates the waveform data to the mriBlankSeq dictionary format which is compatible with
-            the GUI functionalities. If certain waveform keys are not provided in the input, the function initializes
-            them with default values. Additionally, shimming values are added to the gradient channels.
+        ------
+        - This method processes and validates input waveform data to ensure compatibility with MRI hardware.
+        - Hardware-specific parameters such as gradient delay (`hw.gradDelay`) and CIC filter delay
+          (`hw.cic_delay_points`) are applied.
+        - Any signal not specified in `waveforms` is initialized with a default value of zero.
 
         """
-
         # Reset flo dictionary
         self.flo_dict = {'g0': [[], []],
                          'g1': [[], []],
@@ -360,9 +418,23 @@ class MRIBLANKSEQ:
         self.flo_dict['g1'][1] = self.flo_dict['g1'][1] + shimming[1]
         self.flo_dict['g2'][1] = self.flo_dict['g2'][1] + shimming[2]
 
+        # Set everything to zero
         last_times = np.array([value[0][-1] for value in self.flo_dict.values()])
         last_time = np.max(last_times)
         self.endSequence(last_time+10)
+
+        # Add gradient latency and CIC filter delay
+        if hardware:
+            self.flo_dict['g0'][0][1::] -= hw.gradDelay
+            self.flo_dict['g1'][0][1::] -= hw.gradDelay
+            self.flo_dict['g2'][0][1::] -= hw.gradDelay
+            self.flo_dict['rx0'][0][1::] += hw.cic_delay_points * sampling_period / hw.oversamplingFactor
+            self.flo_dict['rx1'][0][1::] += hw.cic_delay_points * sampling_period / hw.oversamplingFactor
+
+        # Set everything to zero (again)
+        last_times = np.array([value[0][-1] for value in self.flo_dict.values()])
+        last_time = np.max(last_times)
+        self.endSequence(last_time + 10)
 
         return True
 
@@ -914,48 +986,80 @@ class MRIBLANKSEQ:
             data1[:, ii, -idx[ii]::] = data0[:, ii, 0:n + idx[ii]]
         return data1
 
-    def decimate(self, dataOver, nRdLines, option='PETRA'):
+    def decimate(self, data_over, n_adc, option='PETRA', remove=True):
         """
-        Preprocess and decimate the oversampled data.
+        Decimates oversampled MRI data, with optional preprocessing to manage oscillations and postprocessing
+        to remove extra points.
 
-        This method performs preprocessing and decimation on the input oversampled data. It deletes added points that
-        account for the time shift and ramp of the CIC filter and preprocesses the data to avoid oscillations due to
-        the FIR filter in the decimation process. It is intended for use when the sequence uses "rxGateSync" to acquire
-        data.
-
-        Args:
-            dataOver (numpy.ndarray): The oversampled data array.
-            nRdLines (int): The number of readout lines.
-            option (str): Default is 'PETRA'. 'PETRA': Preprocesses the initial signal to avoid oscillations due to decimation coming from ring-down. 'Normal': No preprocessing is applied.
+        Parameters:
+        -----------
+        data_over : numpy.ndarray
+            The oversampled data array to be decimated.
+        n_adc : int
+            The number of adc windows in the dataset, used to reshape and process the data appropriately.
+        option : str, optional
+            Preprocessing option to handle data before decimation:
+            - 'PETRA': Adjusts initial points to avoid oscillations during decimation.
+            - 'Normal': Applies no preprocessing (default is 'PETRA').
+        remove : bool, optional
+            If True, removes `addRdPoints` from the start and end of each readout line after decimation.
+            Defaults to True.
 
         Returns:
-            numpy.ndarray: The decimated data array.
+        --------
+        numpy.ndarray
+            The decimated data array, optionally adjusted to remove extra points.
 
+        Workflow:
+        ---------
+        1. **Preprocess data (optional)**:
+            - For 'PETRA' mode, reshapes the data into adc windows and adjusts the first few points of each line
+              to avoid oscillations caused by decimation.
+            - For 'Normal' mode, no preprocessing is applied.
+
+        2. **Decimate the signal**:
+            - Applies a finite impulse response (FIR) filter and decimates the signal by the oversampling factor
+              (`hw.oversamplingFactor`).
+            - Starts decimation after skipping `(oversamplingFactor - 1) / 2` points to minimize edge effects.
+
+        3. **Postprocess data (if `remove=True`)**:
+            - Reshapes the decimated data into adc windows.
+            - Removes `hw.addRdPoints` from the start and end of each line.
+            - Reshapes the cleaned data back into a 1D array.
+
+        Notes:
+        ------
+        - This method uses the hardware-specific parameters:
+          - `hw.oversamplingFactor`: The oversampling factor applied during data acquisition.
+          - `hw.addRdPoints`: The number of additional readout points to include or remove.
+        - The 'PETRA' preprocessing mode is tailored for specialized MRI acquisitions that require smoothing of
+          initial points to prevent oscillations.
         """
+
         # Preprocess the signal to avoid oscillations due to decimation
         if option == 'PETRA':
-            dataOver = np.reshape(dataOver, (nRdLines, -1))
-            for line in range(nRdLines):
-                dataOver[line, 0:hw.addRdPoints * hw.oversamplingFactor] = dataOver[
+            data_over = np.reshape(data_over, (n_adc, -1))
+            for line in range(n_adc):
+                data_over[line, 0:hw.addRdPoints * hw.oversamplingFactor] = data_over[
                     line, hw.addRdPoints * hw.oversamplingFactor]
-            dataOver = np.reshape(dataOver, -1)
+            data_over = np.reshape(data_over, -1)
         elif option == 'Normal':
             pass
-        self.mapVals['dataOver'] = dataOver
 
         # Decimate the signal after 'fir' filter
-        dataFull = sig.decimate(dataOver[int((hw.oversamplingFactor - 1) / 2)::], hw.oversamplingFactor, ftype='fir',
-                                zero_phase=True)
+        data_decimated = sig.decimate(data_over[int((hw.oversamplingFactor - 1) / 2)::], hw.oversamplingFactor,
+                                      ftype='fir', zero_phase=True)
 
         # Remove addRdPoints
-        nPoints = int(dataFull.shape[0] / nRdLines) - 2 * hw.addRdPoints
-        dataFull = np.reshape(dataFull, (nRdLines, -1))
-        dataFull = dataFull[:, hw.addRdPoints:hw.addRdPoints + nPoints]
-        dataFull = np.reshape(dataFull, -1)
+        if remove:
+            nPoints = int(data_decimated.shape[0] / n_adc) - 2 * hw.addRdPoints
+            data_decimated = np.reshape(data_decimated, (n_adc, -1))
+            data_decimated = data_decimated[:, hw.addRdPoints:hw.addRdPoints + nPoints]
+            data_decimated = np.reshape(data_decimated, -1)
 
-        return dataFull
+        return data_decimated
 
-    def rfSincPulse(self, tStart, rfTime, rfAmplitude, rfPhase=0, nLobes=7, rewrite=True):
+    def rfSincPulse(self, tStart, rfTime, rfAmplitude, rfPhase=0, nLobes=7, channel=0, rewrite=True):
         """
         Generate an RF pulse with a sinc pulse shape and the corresponding deblanking signal. It uses a Hanning window
         to reduce the banding of the frequency profile.
@@ -977,10 +1081,35 @@ class MRIBLANKSEQ:
         txAmp = rfAmplitude * np.exp(1j * rfPhase) * hanning * np.abs(np.sinc(tx))
         txGateTime = np.array([tStart, tStart + hw.blkTime + rfTime])
         txGateAmp = np.array([1, 0])
-        self.flo_dict['tx0'][0] = np.concatenate((self.flo_dict['tx0'][0], txTime), axis=0)
-        self.flo_dict['tx0'][1] = np.concatenate((self.flo_dict['tx0'][1], txAmp), axis=0)
+        self.flo_dict['tx%i' % channel][0] = np.concatenate((self.flo_dict['tx%i' % channel][0], txTime), axis=0)
+        self.flo_dict['tx%i' % channel][1] = np.concatenate((self.flo_dict['tx%i' % channel][1], txAmp), axis=0)
         self.flo_dict['ttl0'][0] = np.concatenate((self.flo_dict['ttl0'][0], txGateTime), axis=0)
         self.flo_dict['ttl0'][1] = np.concatenate((self.flo_dict['ttl0'][1], txGateAmp), axis=0)
+
+    def rfRawSincPulse(self, tStart, rfTime, rfAmplitude, rfPhase=0, nLobes=7, channel=0, rewrite=True):
+        """
+        Generate an RF pulse with a sinc pulse shape. It uses a Hanning window
+        to reduce the banding of the frequency profile.
+
+        Args:
+            tStart (float): Start time of the RF pulse.
+            rfTime (float): Duration of the RF pulse.
+            rfAmplitude (float): Amplitude of the RF pulse.
+            rfPhase (float): Phase of the RF pulse in radians. Default is 0.
+            nLobes (int): Number of lobes in the sinc pulse. Default is 7.
+            channel (int): Channel index for the RF pulse. Default is 0.
+            rewrite (bool): Whether to rewrite the existing RF pulse. Default is True.
+
+        """
+        txTime = np.linspace(tStart, tStart + rfTime, num=100, endpoint=True) + hw.blkTime
+        nZeros = (nLobes + 1)
+        tx = np.linspace(-nZeros / 2, nZeros / 2, num=100, endpoint=True)
+        hanning = 0.5 * (1 + np.cos(2 * np.pi * tx / nZeros))
+        txAmp = rfAmplitude * np.exp(1j * rfPhase) * hanning * np.abs(np.sinc(tx))
+        txGateTime = np.array([tStart, tStart + hw.blkTime + rfTime])
+        txGateAmp = np.array([1, 0])
+        self.flo_dict['tx%i' % channel][0] = np.concatenate((self.flo_dict['tx%i' % channel][0], txTime), axis=0)
+        self.flo_dict['tx%i' % channel][1] = np.concatenate((self.flo_dict['tx%i' % channel][1], txAmp), axis=0)
 
     def rfRecPulse(self, tStart, rfTime, rfAmplitude, rfPhase=0, channel=0):
         """
@@ -1326,7 +1455,7 @@ class MRIBLANKSEQ:
         for key in self.flo_dict.keys():
             item = self.flo_dict[key]
             dt = item[0][1::] - item[0][0:-1]
-            if (dt <= 0).any():
+            if (dt <= 1).any():
                 print("ERROR: %s timing error" % key)
                 return False
             if (item[1] > 1).any() or (item[1] < -1).any():
@@ -1336,17 +1465,17 @@ class MRIBLANKSEQ:
         # Add instructions to server
         if not self.demo:
             self.expt.add_flodict({'grad_vx': (self.flo_dict['g0'][0], self.flo_dict['g0'][1]),
-                                   'grad_vy': (self.flo_dict['g1'][0], self.flo_dict['g1'][1]),
-                                   'grad_vz': (self.flo_dict['g2'][0], self.flo_dict['g2'][1]),
-                                   'rx0_en': (self.flo_dict['rx0'][0], self.flo_dict['rx0'][1]),
-                                   'rx1_en': (self.flo_dict['rx1'][0], self.flo_dict['rx1'][1]),
+                                       'grad_vy': (self.flo_dict['g1'][0], self.flo_dict['g1'][1]),
+                                       'grad_vz': (self.flo_dict['g2'][0], self.flo_dict['g2'][1]),
+                                       'rx0_en': (self.flo_dict['rx0'][0], self.flo_dict['rx0'][1]),
+                                       'rx1_en': (self.flo_dict['rx1'][0], self.flo_dict['rx1'][1]),
                                    'rx2_en': (self.flo_dict['rx2'][0], self.flo_dict['rx2'][1]),
                                    'rx3_en': (self.flo_dict['rx3'][0], self.flo_dict['rx3'][1]),
-                                   'tx0': (self.flo_dict['tx0'][0], self.flo_dict['tx0'][1]),
-                                   'tx1': (self.flo_dict['tx1'][0], self.flo_dict['tx1'][1]),
-                                   'tx_gate': (self.flo_dict['ttl0'][0], self.flo_dict['ttl0'][1]),
-                                   'rx_gate': (self.flo_dict['ttl1'][0], self.flo_dict['ttl1'][1]),
-                                   }, rewrite)
+                                       'tx0': (self.flo_dict['tx0'][0], self.flo_dict['tx0'][1]),
+                                       'tx1': (self.flo_dict['tx1'][0], self.flo_dict['tx1'][1]),
+                                       'tx_gate': (self.flo_dict['ttl0'][0], self.flo_dict['ttl0'][1]),
+                                       'rx_gate': (self.flo_dict['ttl1'][0], self.flo_dict['ttl1'][1]),
+                                       }, rewrite)
         return True
 
 
@@ -1419,10 +1548,10 @@ class MRIBLANKSEQ:
         savemat("%s/%s.mat" % (directory_mat, file_name), self.mapVals) # au format savemat(chemin_fichier_mat, {"data" : data}), avec data contient les données brute à sauvegarder
 
         # Save csv with input parameters
-        with open('%s/%s.csv' % (directory_csv, file_name), 'w', encoding='utf-8') as csvfile: # ouvrir le fichier csv en mode écriture au format with open(chemin_fichier_csv, 'w', newline='') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=self.mapKeys) # mapKeys contient les noms des colonnes du fichier csv que l'on veut sauvegarder 
-            writer.writeheader() # écrire l'entete du csv les noms des colonnes dans le fichier csv
-            mapVals = {} # stockage de valeurs de données à écrire
+        with open('%s/%s.csv' % (directory_csv, file_name), 'w', encoding='utf-8') as csvfile: # ouvrir le fichier csv en mode écriture au format with open(chemin_fichier_csv, 'w', newline='') as csvfile: # ouvrir le fichier csv en mode écriture au format with open(chemin_fichier_csv, 'w', newline='') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=self.mapKeys) # mapKeys contient les noms des colonnes du fichier csv que l'on veut sauvegarder  # mapKeys contient les noms des colonnes du fichier csv que l'on veut sauvegarder 
+            writer.writeheader() # écrire l'entete du csv les noms des colonnes dans le fichier csv # écrire l'entete du csv les noms des colonnes dans le fichier csv
+            mapVals = {} # stockage de valeurs de données à écrire # stockage de valeurs de données à écrire
             for key in self.mapKeys:  # take only the inputs from mapVals
                 mapVals[key] = self.mapVals[key] # copie les donnée de l'acquisition stockées dans self.mapVals dans mapVals
             writer.writerows([self.mapNmspc, mapVals]) # écrire les données dans le fichier csv
@@ -1470,8 +1599,7 @@ class MRIBLANKSEQ:
                 destination_file = os.path.join(destination_folder, 'seq', file_name+'_%s.seq' % batch_num)
                 shutil.move(source_file, destination_file)
                 print(f'Moved: {file_name} to {destination_folder}')
-       
-        
+
     def image2Dicom(self, fileName): 
         """
         Save the DICOM image.
@@ -1679,6 +1807,91 @@ class MRIBLANKSEQ:
         self.map_units[key] = unit
 
     @staticmethod
+    def fix_image_orientation(image, axes):
+        """
+        Adjusts the orientation of a 3D image array to match standard anatomical planes
+        (sagittal, coronal, or transversal) and returns the oriented image along with labeling
+        and metadata for visualization.
+
+        Args:
+            image (np.ndarray): A 3D numpy array representing the image data to be reoriented.
+            axes (list[int]): A list of three integers representing the current order of the
+                              axes in the image (e.g., [0, 1, 2] for x, y, z).
+
+        Returns:
+            output (dict): A dictionary containing the following keys:
+                - 'widget': A fixed string "image" or "curve" indicating the type of data for visualization.
+                - 'data': The reoriented 3D image array (np.ndarray).
+                - 'xLabel': A string representing the label for the x-axis in the visualization.
+                - 'yLabel': A string representing the label for the y-axis in the visualization.
+                - 'title': A string representing the title of the visualization (e.g., "Sagittal").
+            image (np.ndarray): Reoriented 3D image array
+        """
+
+        # Get axes in strings
+        axes_dict = {'x': 0, 'y': 1, 'z': 2}
+        axes_keys = list(axes_dict.keys())
+        axes_vals = list(axes_dict.values())
+        axes_str = ['', '', '']
+        n = 0
+        for val in axes:
+            index = axes_vals.index(val)
+            axes_str[n] = axes_keys[index]
+            n += 1
+
+        # Create output dictionaries to plot figures
+        x_label = "%s axis" % axes_str[1]
+        y_label = "%s axis" % axes_str[0]
+        title = "Image"
+        if axes[2] == 2:  # Sagittal
+            title = "Sagittal"
+            if axes[0] == 0 and axes[1] == 1:
+                image = np.flip(image, axis=0)
+                x_label = "(-Y) A | PHASE | P (+Y)"
+                y_label = "(-X) I | READOUT | S (+X)"
+                image_orientation_dicom = [0.0, 1.0, 0.0, 0.0, 0.0, -1.0]
+            else:
+                image = np.transpose(image, (0, 2, 1))
+                image = np.flip(image, axis=0)
+                x_label = "(-Y) A | READOUT | P (+Y)"
+                y_label = "(-X) I | PHASE | S (+X)"
+                image_orientation_dicom = [0.0, 1.0, 0.0, 0.0, 0.0, -1.0]
+        elif axes[2] == 1:  # Coronal
+            title = "Coronal"
+            if axes[0] == 0 and axes[1] == 2:
+                x_label = "(+Z) R | PHASE | L (-Z)"
+                y_label = "(-X) I | READOUT | S (+X)"
+                image_orientation_dicom = [1.0, 0.0, 0.0, 0.0, 0.0, -1.0]
+            else:
+                image = np.transpose(image, (0, 2, 1))
+                x_label = "(+Z) R | READOUT | L (-Z)"
+                y_label = "(-X) I | PHASE | S (+X)"
+                image_orientation_dicom = [1.0, 0.0, 0.0, 0.0, 0.0, -1.0]
+        elif axes[2] == 0:  # Transversal
+            title = "Transversal"
+            if axes[0] == 1 and axes[1] == 2:
+                image = np.flip(image, axis=0)
+                x_label = "(+Z) R | PHASE | L (-Z)"
+                y_label = "(+Y) P | READOUT | A (-Y)"
+                image_orientation_dicom = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+            else:
+                image = np.transpose(image, (0, 2, 1))
+                image = np.flip(image, axis=0)
+                x_label = "(+Z) R | READOUT | L (-Z)"
+                y_label = "(+Y) P | PHASE | A (-Y)"
+                image_orientation_dicom = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+
+        output = {
+            'widget': 'image',
+            'data': image,
+            'xLabel': x_label,
+            'yLabel': y_label,
+            'title': title,
+        }
+
+        return output, image
+
+    @staticmethod
     def runIFFT(k_space):
         """
         Perform inverse FFT reconstruction.
@@ -1881,6 +2094,8 @@ class MRIBLANKSEQ:
         image = self.runIFFT(k_sp_zp)
 
         return image
+
+
 
 
     def editer(ksp: np.ndarray, emi: list, ksz_col=0, ksz_lin=0):

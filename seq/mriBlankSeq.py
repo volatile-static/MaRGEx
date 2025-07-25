@@ -5,10 +5,12 @@ Created on Thu June 2 2022
 @Summary: mri blank sequence with common methods that will be inherited by any sequence
 """
 
-import os
+import os, csv
+from collections import deque
 
 import bm4d
 import numpy as np
+from local_config import grad_board
 import configs.hw_config as hw
 from datetime import date, datetime
 from scipy.io import savemat, loadmat
@@ -83,6 +85,13 @@ class MRIBLANKSEQ:
                          'tx1': [[],[]],
                          'ttl0': [[],[]],
                          'ttl1': [[],[]],}
+        if grad_board == 'ocra40':
+            with open('configs/polyfit.csv', 'r') as f:
+                reader = csv.reader(f)
+                self.fit_coef = np.array(list(reader)).astype(float)
+            if self.fit_coef.shape != (40, 5):
+                raise ValueError("梯度系数错误")
+
 
 
     # *********************************************************************************
@@ -1439,6 +1448,36 @@ class MRIBLANKSEQ:
         self.flo_dict['g%i' % gAxis][0] = np.concatenate((self.flo_dict['g%i' % gAxis][0], np.array([t0])), axis=0)
         self.flo_dict['g%i' % gAxis][1] = np.concatenate((self.flo_dict['g%i' % gAxis][1], np.array([gAmp])), axis=0)
 
+    def grad3_to_40(self) -> None:
+        tim_list, amp_list = [], []
+        tim_q = [deque(self.flo_dict[f'g{i}'][0]) for i in range(3)]
+        amp_q = [deque(self.flo_dict[f'g{i}'][1]) for i in range(3)]
+
+        while any(tim_q):  # 3路逻辑梯度转为40路物理梯度
+            t_min = min(q[0] for q in tim_q if q)  # 按时间顺序从前往后遍历
+            amp_tmp = np.zeros(40, dtype=float)  # xyz拟合场线性叠加
+            for i in range(3):  # xyz
+                if tim_q[i] and tim_q[i][0] == t_min:  # 找到所有同时刻的梯度
+                    tim_q[i].popleft()
+                    amp_tmp += amp_q[i].popleft() * self.fit_coef[:, i + 2]
+            tim_list.append(t_min)
+            amp_list.append(amp_tmp)
+        
+        for amp40 in amp_list:  # 对于每个时间点
+            for ch in range(40):  # 线性补偿
+                k, b = self.fit_coef[ch, :2]
+                amp40[ch] = (amp40[ch] - b) / k
+            amp_mat = amp40.reshape(5, 8)  # 5个功放机箱
+            for i in range(5):  # 过流保护
+                if np.sum(np.abs(amp_mat[i])) > 0.5:
+                    raise ValueError(f'Gradient {i} over current', amp_mat[i])
+        
+        amp_arr = np.array(amp_list)
+        self.expt.add_flodict({
+            f'ocra40_v{i}': (tim_list, amp_arr[:, i]) for i in range(40)
+        })
+
+
     def floDict2Exp(self, rewrite=True, demo=False):
         """
         Check for errors and add instructions to Red Pitaya if no errors are found.
@@ -1467,18 +1506,28 @@ class MRIBLANKSEQ:
 
         # Add instructions to server
         if not self.demo:
-            self.expt.add_flodict({'grad_vx': (self.flo_dict['g0'][0], self.flo_dict['g0'][1]),
-                                       'grad_vy': (self.flo_dict['g1'][0], self.flo_dict['g1'][1]),
-                                       'grad_vz': (self.flo_dict['g2'][0], self.flo_dict['g2'][1]),
-                                       'rx0_en': (self.flo_dict['rx0'][0], self.flo_dict['rx0'][1]),
-                                       'rx1_en': (self.flo_dict['rx1'][0], self.flo_dict['rx1'][1]),
-                                   'rx2_en': (self.flo_dict['rx2'][0], self.flo_dict['rx2'][1]),
-                                   'rx3_en': (self.flo_dict['rx3'][0], self.flo_dict['rx3'][1]),
-                                       'tx0': (self.flo_dict['tx0'][0], self.flo_dict['tx0'][1]),
-                                       'tx1': (self.flo_dict['tx1'][0], self.flo_dict['tx1'][1]),
-                                       'tx_gate': (self.flo_dict['ttl0'][0], gate_level),
-                                       'rx_gate': (self.flo_dict['ttl1'][0], self.flo_dict['ttl1'][1]),
-                                       }, rewrite)
+            self.expt.add_flodict({
+                'rx0_en': (self.flo_dict['rx0'][0], self.flo_dict['rx0'][1]),
+                'rx1_en': (self.flo_dict['rx1'][0], self.flo_dict['rx1'][1]),
+                'rx2_en': (self.flo_dict['rx2'][0], self.flo_dict['rx2'][1]),
+                'rx3_en': (self.flo_dict['rx3'][0], self.flo_dict['rx3'][1]),
+                'tx0': (self.flo_dict['tx0'][0], self.flo_dict['tx0'][1]),
+                'tx1': (self.flo_dict['tx1'][0], self.flo_dict['tx1'][1]),
+                'tx_gate': (self.flo_dict['ttl0'][0], gate_level),
+                'rx_gate': (self.flo_dict['ttl1'][0], self.flo_dict['ttl1'][1]),
+            }, rewrite)
+            if grad_board == 'ocra40':
+                try:
+                    self.grad3_to_40()
+                except ValueError as e:
+                    print(f"ERROR: {e}")
+                    return False
+            else:
+                self.expt.add_flodict({
+                    'grad_vx': (self.flo_dict['g0'][0], self.flo_dict['g0'][1]),
+                    'grad_vy': (self.flo_dict['g1'][0], self.flo_dict['g1'][1]),
+                    'grad_vz': (self.flo_dict['g2'][0], self.flo_dict['g2'][1]),
+                })
         return True
 
 

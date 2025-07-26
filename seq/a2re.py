@@ -43,7 +43,7 @@ class A2RE(blankSeq.MRIBLANKSEQ):
     def sequenceAtributes(self):
         super().sequenceAtributes()  # 把mapVals里的键值对读进self里
 
-        read_points = self.etl*np.product(self.nPoints)*hw.oversamplingFactor
+        read_points = self.etl*np.prod(self.nPoints)*hw.oversamplingFactor
         print('采样深度: ', read_points)
         if read_points > hw.maxRdPoints:
             print('读出点数过多！')
@@ -68,7 +68,7 @@ class A2RE(blankSeq.MRIBLANKSEQ):
         acqTime = self.readoutTime - 2*self.readPadding  # 读出边距
         self.samplingPeriod = acqTime / self.over_samples
 
-        if not np.product(self.voxel) * self.readoutTime > 0:  # 防止输入过程中出现0
+        if not np.prod(self.voxel) * self.readoutTime > 0:  # 防止输入过程中出现0
             return 0
         self.readoutAmp = 2e6 * self.gFactor[self.axes['rd']] / self.voxel[0] / hw.gammaB / self.readoutTime 
         phAmp = 1e6 * self.gFactor[self.axes['ph']] / self.voxel[1] / hw.gammaB / (self.phaseTime + self.riseTime)
@@ -79,7 +79,7 @@ class A2RE(blankSeq.MRIBLANKSEQ):
         if self.nPoints[2] < 2:
             self.sliceGrads = np.array([0])
 
-        self.rfReTime = self.rfExTime
+        self.rfReTime = self.rfExTime * 3
         echoSpacingMin = self.rfReTime + hw.blkTime + 2*self.phaseTime + 6*self.riseTime + self.readoutTime
         print('最小回波间隔: ', echoSpacingMin, 'μs')
         if self.t_e < echoSpacingMin:
@@ -183,15 +183,15 @@ class A2RE(blankSeq.MRIBLANKSEQ):
             ksp = self.mapVals['ksp3d_ch%d' % ch] = np.mean(self.mapVals['mse3d_ch%d' % ch], 2)  # 对回波链取平均
             self.mapVals['img3d_ch%d' % ch] = ifftshift(ifftn(ifftshift(ksp)))  # 重建
 
-        ksp_editer = [self.editer(
-            self.mapVals['ksp3d_ch0'][layer],
-            [self.mapVals['ksp3d_ch%d' % ch][layer] for ch in self.emiCh]
-        ) for layer in range(self.nPoints[2])]
-        img_editer = ifftshift(ifftn(ifftshift(ksp_editer)))
-        self.mapVals['img3d_editer'] = img_editer
+        # ksp_editer = [self.editer(
+        #     self.mapVals['ksp3d_ch0'][layer],
+        #     [self.mapVals['ksp3d_ch%d' % ch][layer] for ch in self.emiCh]
+        # ) for layer in range(self.nPoints[2])]
+        # img_editer = ifftshift(ifftn(ifftshift(ksp_editer)))
+        # self.mapVals['img3d_editer'] = img_editer
 
         img = self.mapVals['img3d_ch0']
-        img_result = np.array([img, img_editer]).transpose(1, 0, 2, 3).reshape(self.nPoints[2], -1, self.nPoints[0])
+        img_result = np.array([img, img]).transpose(1, 0, 2, 3).reshape(self.nPoints[2], -1, self.nPoints[0])
         print('图像尺寸: ', img_result.shape)
         self.output = self.out = [{
             'widget': 'image',

@@ -40,6 +40,8 @@ import seq.rare_t2prep_pp as rare_t2prep_pp
 Definition of default sequences
 """
 defaultsequences = {
+    'A2RE': a2re.A2RE(),
+    'GRE3D': fe3d.GRE3D(),
     'Larmor': larmor.Larmor(),
     'MSE_jma': mse_jma.MSE(),
     'RAREprotocols': rareProtocols.RAREProtocols(),

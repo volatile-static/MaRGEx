@@ -1473,8 +1473,9 @@ class MRIBLANKSEQ:
                     raise ValueError(f'Gradient {i} over current', amp_mat[i])
         
         amp_arr = np.array(amp_list)
+        tim_arr = np.array(tim_list)
         self.expt.add_flodict({
-            f'ocra40_v{i}': (tim_list, amp_arr[:, i]) for i in range(40)
+            f'ocra40_v{i}': (tim_arr, amp_arr[:, i]) for i in range(40)
         })
 
 

@@ -156,7 +156,11 @@ class A2RE(blankSeq.MRIBLANKSEQ):
                     shot(100, self.sliceGrads[i], self.phaseGrads[j])
                     self.endSequence(100 + self.t_r)
                     self.expt.__del__()
-                    self.expt = Experiment(self.mapVals['larmorFreq'], self.mapVals['samplingRate'])
+                    self.expt = Experiment(
+                        self.mapVals['larmorFreq'], 
+                        self.mapVals['samplingRate'],
+                        init_gpa=False
+                    )
                     if not self.floDict2Exp():
                         print('seq CE %d,%d' % (i, j))
                         return 0

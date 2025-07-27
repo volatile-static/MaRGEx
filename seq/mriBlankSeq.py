@@ -1469,7 +1469,7 @@ class MRIBLANKSEQ:
                 amp40[ch] = (amp40[ch] - b) / k
             amp_mat = amp40.reshape(5, 8)  # 5个功放机箱
             for i in range(5):  # 过流保护
-                if np.sum(np.abs(amp_mat[i])) > 0.5:
+                if np.sum(np.abs(amp_mat[i])) > 0.45:
                     raise ValueError(f'Gradient {i} over current', amp_mat[i])
         
         amp_arr = np.array(amp_list)
